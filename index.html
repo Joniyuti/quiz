@@ -1,0 +1,2117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>次郎の5大クイズダンジョン</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: radial-gradient(circle at center, #1e1b4b 0%, #090d16 100%);
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 9:16 Portrait Container with Mobile Chrome Safe-Area Protection */
+  #game-shell {
+    position: relative;
+    width: min(100vw, calc(100dvh * 9 / 16));
+    height: min(100dvh, calc(100vw * 16 / 9));
+    max-width: 100vw;
+    max-height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.85), 0 0 0 2px rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-radius: 14px;
+  }
+
+  @media (max-width: 520px) {
+    #game-shell {
+      width: 100vw;
+      height: 100dvh;
+      border-radius: 0;
+      box-shadow: none;
+    }
+  }
+
+  /* Keycap Badge for PC users */
+  .keycap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.85);
+    color: #fde047;
+    border: 1px solid rgba(253, 224, 71, 0.5);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+    margin-left: 4px;
+    line-height: 1.2;
+    vertical-align: middle;
+  }
+
+  /* Animations */
+  @keyframes floatIdle {
+    0%, 100% { transform: translateY(0px) scale(1); }
+    50% { transform: translateY(-5px) scale(1.015); }
+  }
+  @keyframes bossAura {
+    0%, 100% { filter: drop-shadow(0 0 10px rgba(244, 63, 94, 0.65)); }
+    50% { filter: drop-shadow(0 0 22px rgba(251, 191, 36, 0.9)); }
+  }
+  @keyframes shakeHard {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px) rotate(-1deg); }
+    40% { transform: translateX(8px) rotate(1deg); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+  @keyframes popIn {
+    0% { opacity: 0; transform: scale(0.88) translateY(12px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes flashPulse {
+    0% { opacity: 0.85; }
+    100% { opacity: 0; }
+  }
+
+  .anim-idle { animation: floatIdle 3s ease-in-out infinite; }
+  .anim-boss { animation: floatIdle 2.6s ease-in-out infinite, bossAura 2s ease-in-out infinite; }
+  .anim-shake { animation: shakeHard 0.4s ease-in-out; }
+  .anim-pop { animation: popIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+  .choice-btn {
+    transition: transform 0.1s ease, background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .choice-btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Custom subtle scrollbar for modal */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div id="game-shell">
+  <!-- Particle / Confetti Overlay Canvas -->
+  <canvas id="fx-canvas" class="pointer-events-none absolute inset-0 z-50 w-full h-full"></canvas>
+  <!-- Screen Flash Overlay -->
+  <div id="flash-overlay" class="pointer-events-none absolute inset-0 z-40 bg-white opacity-0"></div>
+
+  <!-- Top Utility Bar -->
+  <header id="top-bar" class="relative z-30 flex items-center justify-between px-3 py-1.5 bg-slate-900/90 border-b border-slate-700/70 text-xs text-slate-200 shrink-0">
+    <div class="flex items-center gap-1.5 font-extrabold text-amber-300 truncate">
+      <span>👑 次郎の5大クイズダンジョン</span>
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button id="btn-mute" onclick="AudioSys.toggleMute()" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[11px] font-bold flex items-center">
+        <span id="mute-label">🔊 ON</span><span class="keycap">M</span>
+      </button>
+      <button id="btn-home" onclick="Game.confirmReturnHub()" class="hidden px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[11px] font-bold">
+        一覧へ<span class="keycap">Esc</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Dynamic Viewport -->
+  <main id="screen-container" class="relative flex-1 w-full overflow-hidden flex flex-col"></main>
+
+  <!-- Custom Modal (No alert/confirm!) -->
+  <div id="modal-overlay" class="hidden absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-xs bg-slate-900 border-2 border-amber-400/70 rounded-2xl p-4 shadow-2xl anim-pop text-slate-100">
+      <h3 id="modal-title" class="text-base font-black text-amber-300 mb-2">確認</h3>
+      <p id="modal-body" class="text-xs leading-relaxed text-slate-200 mb-4"></p>
+      <div id="modal-actions" class="flex gap-2 justify-end"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   1. PROCEDURAL WEB AUDIO ENGINE (BGM & SOUND EFFECTS)
+============================================================================ */
+const AudioSys = (() => {
+  let ctx = null;
+  let muted = false;
+  let bgmTimer = null;
+  let currentBgm = null;
+  let step = 0;
+
+  function init() {
+    if (!ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) ctx = new AudioCtx();
+    }
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+  }
+
+  function playTone(freq, duration, type = 'sine', vol = 0.08, delay = 0) {
+    if (muted) return;
+    init();
+    if (!ctx) return;
+    const now = ctx.currentTime + delay;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(vol, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  const patterns = {
+    hub: { tempo: 240, type: 'triangle', notes: [261.6, 329.6, 392.0, 523.3, 392.0, 329.6, 293.7, 392.0] },
+    adv: { tempo: 320, type: 'sine', notes: [329.6, 392.0, 440.0, 392.0, 293.7, 349.2, 392.0, 261.6] },
+    battle: { tempo: 155, type: 'square', notes: [220.0, 261.6, 329.6, 220.0, 246.9, 293.7, 349.2, 329.6] },
+    boss: { tempo: 130, type: 'sawtooth', notes: [146.8, 146.8, 174.6, 164.8, 146.8, 220.0, 207.7, 196.0] }
+  };
+
+  function startBgm(name) {
+    if (currentBgm === name && bgmTimer) return;
+    stopBgm();
+    currentBgm = name;
+    step = 0;
+    const p = patterns[name];
+    if (!p) return;
+    bgmTimer = setInterval(() => {
+      if (muted) return;
+      const note = p.notes[step % p.notes.length];
+      playTone(note, (p.tempo / 1000) * 0.85, p.type, name === 'boss' ? 0.035 : 0.045);
+      step++;
+    }, p.tempo);
+  }
+
+  function stopBgm() {
+    if (bgmTimer) {
+      clearInterval(bgmTimer);
+      bgmTimer = null;
+    }
+    currentBgm = null;
+  }
+
+  function se(kind) {
+    if (muted) return;
+    init();
+    switch (kind) {
+      case 'click':
+        playTone(660, 0.07, 'triangle', 0.09);
+        break;
+      case 'blip':
+        playTone(520 + Math.random() * 140, 0.035, 'sine', 0.04);
+        break;
+      case 'correct':
+        playTone(523.25, 0.12, 'triangle', 0.12, 0);
+        playTone(659.25, 0.12, 'triangle', 0.12, 0.08);
+        playTone(783.99, 0.25, 'triangle', 0.14, 0.16);
+        break;
+      case 'wrong':
+        playTone(185, 0.18, 'sawtooth', 0.11, 0);
+        playTone(146.8, 0.3, 'sawtooth', 0.11, 0.14);
+        break;
+      case 'tick':
+        playTone(880, 0.04, 'sine', 0.05);
+        break;
+      case 'start':
+        [392, 493.9, 587.3, 784].forEach((f, i) => playTone(f, 0.14, 'square', 0.07, i * 0.06));
+        break;
+      case 'victory':
+        [523.3, 659.3, 784, 1046.5].forEach((f, i) => playTone(f, 0.22, 'triangle', 0.12, i * 0.1));
+        break;
+      case 'defeat':
+        [392, 349.2, 311.1, 261.6].forEach((f, i) => playTone(f, 0.26, 'sawtooth', 0.08, i * 0.15));
+        break;
+    }
+  }
+
+  function toggleMute() {
+    muted = !muted;
+    document.getElementById('mute-label').textContent = muted ? '🔇 OFF' : '🔊 ON';
+    if (!muted) se('click');
+  }
+
+  return { init, startBgm, stopBgm, se, toggleMute };
+})();
+
+/* ============================================================================
+   2. PARTICLE & FLASH FX ENGINE
+============================================================================ */
+const FX = (() => {
+  const canvas = document.getElementById('fx-canvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  let running = false;
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+  }
+  window.addEventListener('resize', resize);
+
+  function spawn(x, y, count = 28, palette = ['#fde047', '#38bdf8', '#f472b6', '#4ade80']) {
+    resize();
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 5.5;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 1.5,
+        size: 4 + Math.random() * 5,
+        color: palette[Math.floor(Math.random() * palette.length)],
+        alpha: 1,
+        rot: Math.random() * Math.PI,
+        vrot: (Math.random() - 0.5) * 0.2
+      });
+    }
+    if (!running) loop();
+  }
+
+  function confetti() {
+    resize();
+    for (let i = 0; i < 65; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: -10 - Math.random() * 120,
+        vx: (Math.random() - 0.5) * 2.5,
+        vy: 2.2 + Math.random() * 3.5,
+        size: 5 + Math.random() * 5,
+        color: ['#fbbf24', '#f43f5e', '#38bdf8', '#a855f7', '#34d399'][i % 5],
+        alpha: 1,
+        rot: Math.random() * 6,
+        vrot: (Math.random() - 0.5) * 0.15
+      });
+    }
+    if (!running) loop();
+  }
+
+  function loop() {
+    running = true;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.14;
+      p.rot += p.vrot;
+      p.alpha -= 0.015;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.alpha);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.65);
+      ctx.restore();
+    });
+    particles = particles.filter(p => p.alpha > 0);
+    if (particles.length > 0) requestAnimationFrame(loop);
+    else running = false;
+  }
+
+  function flash(color = '#ffffff') {
+    const el = document.getElementById('flash-overlay');
+    el.style.backgroundColor = color;
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'flashPulse 0.35s ease-out forwards';
+  }
+
+  return { spawn, confetti, flash };
+})();
+
+/* ============================================================================
+   3. CUSTOM SVG PORTRAIT GENERATOR (JIRO + ALL 15 CHARACTERS)
+============================================================================ */
+function renderPortraitSVG(charId, mood = 'normal', size = 150) {
+  // Jiro: 40-year-old chubby man, full head of neat dark hair (not bald!), round friendly face, glasses, polo shirt + jacket
+  if (charId === 'jiro') {
+    const isHappy = mood === 'happy';
+    const isSad = mood === 'sad';
+    const isThink = mood === 'think';
+    const mouthPath = isHappy
+      ? 'M 64 95 Q 80 112 96 95 Z'
+      : isSad
+      ? 'M 66 104 Q 80 93 94 104'
+      : isThink
+      ? 'M 71 99 Q 80 97 89 101'
+      : 'M 67 97 Q 80 106 93 97';
+    const browOffset = isSad ? 4 : isThink ? -2 : 0;
+    return `
+    <svg viewBox="0 0 160 160" width="${size}" height="${size}" class="drop-shadow-lg overflow-visible">
+      <defs>
+        <linearGradient id="jiroShirt" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#38bdf8"/>
+          <stop offset="100%" stop-color="#0284c7"/>
+        </linearGradient>
+        <linearGradient id="jiroJacket" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#334155"/>
+          <stop offset="100%" stop-color="#1e293b"/>
+        </linearGradient>
+      </defs>
+      <!-- Chubby Shoulders & Casual Jacket -->
+      <path d="M 14 158 C 16 118, 42 110, 80 110 C 118 110, 144 118, 146 158 Z" fill="url(#jiroJacket)" stroke="#0f172a" stroke-width="2.5"/>
+      <!-- Inner Polo Shirt -->
+      <path d="M 54 112 L 80 156 L 106 112 Z" fill="url(#jiroShirt)"/>
+      <path d="M 56 112 L 72 125 L 80 116 L 88 125 L 104 112" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+      <!-- Thick Neck & Double Chin hint -->
+      <rect x="62" y="96" width="36" height="22" rx="10" fill="#fed7aa"/>
+      <!-- Ears -->
+      <circle cx="36" cy="76" r="9" fill="#fdba74" stroke="#9a3412" stroke-width="1.5"/>
+      <circle cx="124" cy="76" r="9" fill="#fdba74" stroke="#9a3412" stroke-width="1.5"/>
+      <!-- Round Chubby Head -->
+      <ellipse cx="80" cy="74" rx="44" ry="42" fill="#fed7aa" stroke="#9a3412" stroke-width="2"/>
+      <!-- Double Chin Curve -->
+      <path d="M 60 107 Q 80 115 100 107" fill="none" stroke="#ea580c" stroke-width="1.8" opacity="0.65"/>
+      <!-- Rosy Chubby Cheeks -->
+      <ellipse cx="52" cy="84" rx="8" ry="5" fill="#fb7185" opacity="0.38"/>
+      <ellipse cx="108" cy="84" rx="8" ry="5" fill="#fb7185" opacity="0.38"/>
+      <!-- Full Head of Thick Neat Dark Hair (Definitely NOT bald!) -->
+      <path d="M 34 72 C 30 34, 52 18, 80 18 C 108 18, 130 34, 126 72 C 123 54, 114 45, 102 43 C 94 49, 84 48, 76 42 C 64 49, 46 49, 34 72 Z" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+      <!-- Sideburns & Top Hair Volume -->
+      <path d="M 46 25 Q 68 12 96 20 Q 114 25 120 40" fill="none" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- Eyebrows -->
+      <path d="M 52 ${60 + browOffset} Q 62 ${56 - browOffset} 71 ${60 + browOffset}" fill="none" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M 89 ${60 + browOffset} Q 98 ${56 - browOffset} 108 ${60 + browOffset}" fill="none" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round"/>
+      <!-- Glasses Frame -->
+      <rect x="49" y="64" width="25" height="16" rx="4" fill="rgba(255,255,255,0.22)" stroke="#0f172a" stroke-width="2.4"/>
+      <rect x="86" y="64" width="25" height="16" rx="4" fill="rgba(255,255,255,0.22)" stroke="#0f172a" stroke-width="2.4"/>
+      <line x1="74" y1="71" x2="86" y2="71" stroke="#0f172a" stroke-width="2.4"/>
+      <!-- Eyes -->
+      ${isHappy
+        ? '<path d="M 55 73 Q 61 67 68 73" fill="none" stroke="#0f172a" stroke-width="2.6" stroke-linecap="round"/><path d="M 92 73 Q 98 67 105 73" fill="none" stroke="#0f172a" stroke-width="2.6" stroke-linecap="round"/>'
+        : '<circle cx="61.5" cy="72" r="3.4" fill="#0f172a"/><circle cx="98.5" cy="72" r="3.4" fill="#0f172a"/><circle cx="62.7" cy="70.8" r="1.1" fill="#fff"/><circle cx="99.7" cy="70.8" r="1.1" fill="#fff"/>'}
+      <!-- Round Nose -->
+      <path d="M 78 76 Q 75 84 82 85" fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round"/>
+      <!-- Mouth -->
+      <path d="${mouthPath}" fill="${isHappy ? '#f43f5e' : 'none'}" stroke="#7c2d12" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- Sweat Drop if Sad or Thinking -->
+      ${(isSad || isThink) ? '<path d="M 122 50 C 122 50, 128 60, 125 65 C 123 68, 119 67, 119 63 C 119 59, 122 50, 122 50 Z" fill="#38bdf8" stroke="#0284c7" stroke-width="1"/>' : ''}
+    </svg>`;
+  }
+
+  // Heroine Portrait Configurations for all 15 characters
+  const specs = {
+    sakura:   { hair: '#92400e', hairHi: '#d97706', style: 'bob', eyes: '#16a34a', outfit: '#fbcfe8', trim: '#f43f5e', acc: 'wingClip', skin: '#ffedd5' },
+    chino:    { hair: '#bae6fd', hairHi: '#e0f2fe', style: 'twintail', eyes: '#2563eb', outfit: '#1e293b', trim: '#ffffff', acc: 'xPin', skin: '#fff7ed' },
+    haibara:  { hair: '#9a3412', hairHi: '#ea580c', style: 'wavyBob', eyes: '#0d9488', outfit: '#4c1d95', trim: '#ddd6fe', acc: 'coolBangs', skin: '#ffedd5' },
+    mikoto:   { hair: '#78350f', hairHi: '#b45309', style: 'short', eyes: '#b45309', outfit: '#f8fafc', trim: '#1e3a8a', acc: 'flowerPin', skin: '#ffedd5' },
+    madoka:   { hair: '#f472b6', hairHi: '#fbcfe8', style: 'twintailRibbon', eyes: '#db2777', outfit: '#fce7f3', trim: '#ec4899', acc: 'redRibbons', skin: '#fff1f2' },
+    anna:     { hair: '#713f12', hairHi: '#a16207', style: 'longWavy', eyes: '#4338ca', outfit: '#1e293b', trim: '#38bdf8', acc: 'snack', skin: '#ffedd5' },
+    marin:    { hair: '#fde047', hairHi: '#fef9c3', style: 'longGal', eyes: '#e11d48', outfit: '#f8fafc', trim: '#0284c7', acc: 'choker', skin: '#ffedd5' },
+    eru:      { hair: '#1e1b4b', hairHi: '#4338ca', style: 'longStraight', eyes: '#7c3aed', outfit: '#1e293b', trim: '#94a3b8', acc: 'curiousSpark', skin: '#fff7ed' },
+    mai:      { hair: '#0f172a', hairHi: '#334155', style: 'longSide', eyes: '#1d4ed8', outfit: '#1e293b', trim: '#e11d48', acc: 'bunnyPin', skin: '#fff7ed' },
+    chizuru:  { hair: '#5c2d16', hairHi: '#854d0e', style: 'longLady', eyes: '#92400e', outfit: '#fecdd3', trim: '#be123c', acc: 'earring', skin: '#fff7ed' },
+    tsubame:  { hair: '#854d0e', hairHi: '#ca8a04', style: 'semiLong', eyes: '#6d28d9', outfit: '#e0e7ff', trim: '#4f46e5', acc: 'beret', skin: '#fff7ed' },
+    uzaki:    { hair: '#94a3b8', hairHi: '#cbd5e1', style: 'lowTwin', eyes: '#0284c7', outfit: '#ffffff', trim: '#ef4444', acc: 'fang', skin: '#ffedd5' },
+    holo:     { hair: '#b45309', hairHi: '#f59e0b', style: 'longWolf', eyes: '#dc2626', outfit: '#fef3c7', trim: '#b91c1c', acc: 'wolfEars', skin: '#ffedd5' },
+    tohru:    { hair: '#facc15', hairHi: '#fef08a', style: 'longDragon', eyes: '#ea580c', outfit: '#18181b', trim: '#ffffff', acc: 'dragonHorns', skin: '#ffedd5' },
+    nagato:   { hair: '#312e81', hairHi: '#6366f1', style: 'shortBob', eyes: '#b45309', outfit: '#1e3a8a', trim: '#f8fafc', acc: 'glasses', skin: '#f8fafc' }
+  };
+
+  const s = specs[charId] || specs.sakura;
+  const isBoss = ['haibara', 'anna', 'mai', 'uzaki', 'nagato'].includes(charId);
+  const isAngry = mood === 'attack';
+  const isShock = mood === 'damage';
+  const isSmile = mood === 'happy';
+
+  // Back hair layer
+  let backHair = '';
+  if (s.style.includes('twintail')) {
+    backHair = `
+      <path d="M 42 56 Q 16 82 24 134 Q 36 128 45 86 Z" fill="${s.hair}" stroke="#0f172a" stroke-width="1.6"/>
+      <path d="M 118 56 Q 144 82 136 134 Q 124 128 115 86 Z" fill="${s.hair}" stroke="#0f172a" stroke-width="1.6"/>`;
+  } else if (s.style === 'lowTwin') {
+    backHair = `
+      <path d="M 44 76 Q 22 98 28 132 Q 40 126 48 92 Z" fill="${s.hair}" stroke="#0f172a" stroke-width="1.6"/>
+      <path d="M 116 76 Q 138 98 132 132 Q 120 126 112 92 Z" fill="${s.hair}" stroke="#0f172a" stroke-width="1.6"/>`;
+  } else if (s.style.includes('long')) {
+    backHair = `<path d="M 38 52 C 26 92, 28 136, 36 156 L 124 156 C 132 136, 134 92, 122 52 Z" fill="${s.hair}" stroke="#0f172a" stroke-width="1.8"/>`;
+  } else {
+    backHair = `<path d="M 40 50 C 32 76, 34 102, 44 108 L 116 108 C 126 102, 128 76, 120 50 Z" fill="${s.hair}" stroke="#0f172a" stroke-width="1.6"/>`;
+  }
+
+  // Special non-human / unique accessories
+  let extraBack = '';
+  let extraFront = '';
+  if (s.acc === 'wolfEars') {
+    extraBack += `
+      <polygon points="44,44 34,10 64,34" fill="#b45309" stroke="#0f172a" stroke-width="1.8"/>
+      <polygon points="46,39 39,18 59,34" fill="#fef3c7"/>
+      <polygon points="116,44 126,10 96,34" fill="#b45309" stroke="#0f172a" stroke-width="1.8"/>
+      <polygon points="114,39 121,18 101,34" fill="#fef3c7"/>
+      <path d="M 115 140 Q 152 118 146 86 Q 130 98 118 124 Z" fill="#d97706" stroke="#0f172a" stroke-width="1.8"/>`;
+  }
+  if (s.acc === 'dragonHorns') {
+    extraBack += `
+      <path d="M 46 42 Q 24 22 30 8 Q 44 18 56 36 Z" fill="#fef3c7" stroke="#92400e" stroke-width="1.8"/>
+      <path d="M 114 42 Q 136 22 130 8 Q 116 18 104 36 Z" fill="#fef3c7" stroke="#92400e" stroke-width="1.8"/>
+      <path d="M 114 146 Q 154 138 150 112 Q 134 118 118 134 Z" fill="#22c55e" stroke="#14532d" stroke-width="2"/>`;
+  }
+  if (s.acc === 'redRibbons') {
+    extraFront += `
+      <polygon points="42,52 26,44 32,62" fill="#f43f5e"/><polygon points="42,52 50,38 54,54" fill="#f43f5e"/>
+      <polygon points="118,52 134,44 128,62" fill="#f43f5e"/><polygon points="118,52 110,38 106,54" fill="#f43f5e"/>`;
+  }
+  if (s.acc === 'bunnyPin') {
+    extraFront += `<path d="M 102 44 L 106 28 L 111 43 L 116 28 L 118 45 Z" fill="#f43f5e" stroke="#fff" stroke-width="1"/>`;
+  }
+  if (s.acc === 'flowerPin') {
+    extraFront += `<circle cx="106" cy="48" r="6" fill="#fde047" stroke="#ca8a04" stroke-width="1.4"/><circle cx="106" cy="48" r="2.2" fill="#fff"/>`;
+  }
+  if (s.acc === 'beret') {
+    extraFront += `<ellipse cx="84" cy="26" rx="38" ry="12" transform="rotate(-10 84 26)" fill="#4338ca" stroke="#1e1b4b" stroke-width="1.8"/>`;
+  }
+  if (s.acc === 'glasses') {
+    extraFront += `
+      <rect x="53" y="69" width="21" height="13" rx="3" fill="rgba(255,255,255,0.22)" stroke="#e11d48" stroke-width="1.8"/>
+      <rect x="86" y="69" width="21" height="13" rx="3" fill="rgba(255,255,255,0.22)" stroke="#e11d48" stroke-width="1.8"/>
+      <line x1="74" y1="75" x2="86" y2="75" stroke="#e11d48" stroke-width="1.8"/>`;
+  }
+
+  const eyeShape = isShock
+    ? `<circle cx="64" cy="75" r="5" fill="#fff" stroke="#0f172a" stroke-width="1.6"/><circle cx="64" cy="75" r="2" fill="#0f172a"/>
+       <circle cx="96" cy="75" r="5" fill="#fff" stroke="#0f172a" stroke-width="1.6"/><circle cx="96" cy="75" r="2" fill="#0f172a"/>`
+    : isSmile
+    ? `<path d="M 57 76 Q 64 68 71 76" fill="none" stroke="#0f172a" stroke-width="2.4" stroke-linecap="round"/>
+       <path d="M 89 76 Q 96 68 103 76" fill="none" stroke="#0f172a" stroke-width="2.4" stroke-linecap="round"/>`
+    : `<ellipse cx="64" cy="75" rx="6.2" ry="7" fill="${s.eyes}" stroke="#0f172a" stroke-width="1.4"/>
+       <circle cx="64" cy="75" r="3" fill="#0f172a"/>
+       <circle cx="62" cy="72.5" r="2.1" fill="#ffffff"/>
+       <ellipse cx="96" cy="75" rx="6.2" ry="7" fill="${s.eyes}" stroke="#0f172a" stroke-width="1.4"/>
+       <circle cx="96" cy="75" r="3" fill="#0f172a"/>
+       <circle cx="94" cy="72.5" r="2.1" fill="#ffffff"/>`;
+
+  const mouth = isShock
+    ? `<ellipse cx="80" cy="96" rx="5" ry="6" fill="#f43f5e" stroke="#881337" stroke-width="1.4"/>`
+    : isAngry
+    ? `<path d="M 70 96 Q 80 91 90 96" fill="none" stroke="#881337" stroke-width="2.2" stroke-linecap="round"/>`
+    : isSmile
+    ? `<path d="M 70 93 Q 80 105 90 93 Z" fill="#fb7185" stroke="#881337" stroke-width="1.6"/>`
+    : `<path d="M 73 95 Q 80 100 87 95" fill="none" stroke="#881337" stroke-width="2" stroke-linecap="round"/>${s.acc === 'fang' ? '<polygon points="84,96 86,100 88,96" fill="#fff"/>' : ''}`;
+
+  return `
+  <svg viewBox="0 0 160 160" width="${size}" height="${size}" class="overflow-visible">
+    ${isBoss ? '<circle cx="80" cy="82" r="68" fill="none" stroke="#f43f5e" stroke-width="2" stroke-dasharray="6 4" opacity="0.65"/>' : ''}
+    ${extraBack}
+    ${backHair}
+    <!-- Outfit / Shoulders -->
+    <path d="M 32 158 C 36 122, 54 114, 80 114 C 106 114, 124 122, 128 158 Z" fill="${s.outfit}" stroke="#0f172a" stroke-width="2"/>
+    <path d="M 60 115 L 80 138 L 100 115" fill="none" stroke="${s.trim}" stroke-width="3.5" stroke-linejoin="round"/>
+    <!-- Neck -->
+    <rect x="71" y="100" width="18" height="18" rx="6" fill="${s.skin}"/>
+    <!-- Face -->
+    <path d="M 46 66 C 46 42, 114 42, 114 66 C 114 92, 98 106, 80 106 C 62 106, 46 92, 46 66 Z" fill="${s.skin}" stroke="#7c2d12" stroke-width="1.6"/>
+    <!-- Blush -->
+    <ellipse cx="55" cy="85" rx="6" ry="3.2" fill="#fb7185" opacity="0.45"/>
+    <ellipse cx="105" cy="85" rx="6" ry="3.2" fill="#fb7185" opacity="0.45"/>
+    <!-- Front Hair / Bangs -->
+    <path d="M 43 72 C 42 36, 58 24, 80 24 C 102 24, 118 36, 117 72 C 112 56, 104 48, 96 58 C 90 46, 84 46, 80 58 C 74 46, 66 48, 60 58 C 54 48, 47 56, 43 72 Z" fill="${s.hair}" stroke="#0f172a" stroke-width="1.7"/>
+    <!-- Hair Highlight -->
+    <path d="M 56 42 Q 80 35 104 42" fill="none" stroke="${s.hairHi}" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+    <!-- Eyebrows -->
+    <path d="M 55 ${isAngry ? 65 : 62} Q 64 ${isAngry ? 68 : 60} 72 ${isAngry ? 67 : 63}" fill="none" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/>
+    <path d="M 88 ${isAngry ? 67 : 63} Q 96 ${isAngry ? 68 : 60} 105 ${isAngry ? 65 : 62}" fill="none" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/>
+    ${eyeShape}
+    ${mouth}
+    ${extraFront}
+  </svg>`;
+}
+
+/* ============================================================================
+   4. DUNGEON & CHARACTER METADATA (5 DUNGEONS, 15 CHARACTERS, FULL ADV)
+============================================================================ */
+const DUNGEONS = [
+  {
+    id: 'js',
+    name: '女子小学生ダンジョン',
+    short: 'JSダンジョン',
+    themeLabel: '女子小学生の趣味・悩み・流行（2026最新）',
+    color: 'from-pink-500 to-rose-500',
+    badgeColor: 'bg-pink-500',
+    icon: '🎀',
+    chars: [
+      {
+        id: 'sakura', name: '木之本 桜', role: '第1の刺客', isBoss: false,
+        intro: ['はにゃ〜ん！あなたが挑戦者の次郎さんだね！', 'あたし、木之本桜！カードや可愛い文房具、今の小学生の流行なら負けないよ！', '絶対だいじょうぶだよ、楽しく勝負しようね！'],
+        win: ['ほぇ〜、次郎さんすっごく詳しいんだね！', 'あたしの負け！次の部屋ではチノちゃんが待ってるよ、がんばってね！'],
+        lose: ['やったぁ、あたしの勝ちだね！', '小学生のトレンドは奥が深いんだよ〜。またいつでも挑戦しにきてね！']
+      },
+      {
+        id: 'chino', name: '香風 智乃', role: '第2の刺客', isBoss: false,
+        intro: ['……んっ。桜さんから話は聞いています。', '私、香風智乃です。甘いものや流行のシール交換、同年代の話題には自信があります。', '手加減はしませんから……覚悟してください。'],
+        win: ['……くっ、40歳のおじさんなのに的確ですね。', 'お姉ちゃんじゃありませんけど、今の実力は認めます。奥の灰原さんにも気をつけてください。'],
+        lose: ['ふぅ……私の勝ちです。', 'もう少し最近の小学生の気持ちや流行を勉強してから出直してくださいね。']
+      },
+      {
+        id: 'haibara', name: '灰原 哀', role: 'ダンジョンBOSS', isBoss: true,
+        intro: ['……あら、ここまで辿り着くなんて意外ね。', '見た目は小学1年生でも、観察眼と情報分析力は大人顔負けよ。', '2026年の小学生のリアルな悩みと流行、どこまで見抜けるか試させてもらうわ。'],
+        win: ['ふふ……皮肉なものね。私としたことが完全に見誤ったわ。', '見事よ、次郎さん。このダンジョンの踏破証、堂々と受け取りなさい。'],
+        lose: ['言ったはずよ、甘く見ないほうがいいって。', '外に出て頭を冷やしてきなさい。また挑戦するなら付き合ってあげるわ。']
+      }
+    ],
+    clearAdv: [
+      '「女子小学生ダンジョン」を完全制覇した！',
+      '次郎「ふぅ〜！シール交換から最近のランドセル事情まで、いやぁ勉強になったなぁ！」',
+      'クリアの証【きらめきリボンバッジ】を手に入れた！'
+    ]
+  },
+  {
+    id: 'jc',
+    name: '女子中学生ダンジョン',
+    short: 'JCダンジョン',
+    themeLabel: '女子中学生の趣味・SNS・人間関係の悩み（2026最新）',
+    color: 'from-violet-500 to-indigo-600',
+    badgeColor: 'bg-violet-500',
+    icon: '⚡',
+    chars: [
+      {
+        id: 'mikoto', name: '御坂 美琴', role: '第1の刺客', isBoss: false,
+        intro: ['ちょっとアンタ、ここが女子中学生ダンジョンってわかって来てんの？', '前髪命の朝準備から推し活、SNSの暗黙ルールまで、アタシが相手してやるっつーの！'],
+        win: ['なっ……！？アンタ、意外とスジいいじゃない！', 'べ、別に褒めてるわけじゃないんだからね！次はまどかが相手するわよ！'],
+        lose: ['ほら見なさい、アタシの勝ちじゃん！', '出直してきなさいっつーの！ビリビリしびれたでしょ？']
+      },
+      {
+        id: 'madoka', name: '鹿目 まどか', role: '第2の刺客', isBoss: false,
+        intro: ['こんにちは、次郎さん。わたし、鹿目まどかです。', 'お友達とのグループLINEの悩みとか、部活や放課後の楽しみとか……みんなが笑顔になれるクイズにしたいな。'],
+        win: ['すごいよ、次郎さん！みんなの気持ち、ちゃんとわかってくれてるんだね。', '奥にいる杏奈ちゃんはとっても手強いけど、次郎さんならきっと大丈夫だよ！'],
+        lose: ['ごめんね、わたしの勝ちみたい……。', 'でも、一生懸命考えてくれて嬉しかったよ。また挑戦してね！']
+      },
+      {
+        id: 'anna', name: '山田 杏奈', role: 'ダンジョンBOSS', isBoss: true,
+        intro: ['んぐっ……あ、来たんだ〜。わたし、山田杏奈。', 'お菓子食べながらでも、女子中学生のリアルなトレンドとか恋バナなら負けな〜い。', 'お腹すいた〜けど、全力でいくからマジで覚悟してね！'],
+        win: ['えっ、マジで！？次郎さん全問わかっちゃう感じ？ウケるんだけど！', 'すご〜い！約束通り、このダンジョンは次郎さんのクリアだよ〜！'],
+        lose: ['やった〜、わたしの勝ち！ご褒美にコンビニの新作スイーツ買ってこよ〜っと！', '次郎さんもまたリベンジしに来てね〜！']
+      }
+    ],
+    clearAdv: [
+      '「女子中学生ダンジョン」を完全制覇した！',
+      '次郎「おぉ〜！前髪のケープのこだわりやSNSの距離感、奥が深いぜ……！」',
+      'クリアの証【青春サンダースター】を手に入れた！'
+    ]
+  },
+  {
+    id: 'jk',
+    name: '女子高校生ダンジョン',
+    short: 'JKダンジョン',
+    themeLabel: '女子高校生の青春・バイト・流行スポット（2026最新）',
+    color: 'from-amber-500 to-orange-600',
+    badgeColor: 'bg-amber-500',
+    icon: '✨',
+    chars: [
+      {
+        id: 'marin', name: '喜多川 海夢', role: '第1の刺客', isBoss: false,
+        intro: ['やっほ〜！次郎さんマジチャレンジャーじゃん！あたし喜多川海夢！', '2026年のJKトレンドもコスプレも放課後カフェも、超いいじゃんって問題ばっかだからテンション上げてこ〜！'],
+        win: ['え、待って待って！次郎さん知識ガチ勢すぎん！？最高かよ！', 'マジ尊敬〜！次のえるちんも超手強いから気合い入れてね！'],
+        lose: ['いぇ〜い、海夢の勝利〜！', 'JKの最新トレンドは毎日進化してんだよね〜！また遊びに来てよね！']
+      },
+      {
+        id: 'eru', name: '千反田 える', role: '第2の刺客', isBoss: false,
+        intro: ['はじめまして、千反田えると申します。', '高校生活の文化祭やアルバイト、進路の悩みなど……なぜそれが流行るのか、私、気になります！', 'ぜひ、真剣勝負をお願いいたします！'],
+        win: ['素晴らしい知識です！おかげで私の疑問もすっきりいたしました！', 'この先は桜島先輩がお待ちです。どうかお気をつけてお進みください。'],
+        lose: ['申し訳ありません、私の勝利となりました。', 'ですが、とても興味深い勝負でした。またお会いできる日を楽しみにしております。']
+      },
+      {
+        id: 'mai', name: '桜島 麻衣', role: 'ダンジョンBOSS', isBoss: true,
+        intro: ['ふぅん、あなたがここまで勝ち上がってきた次郎さんね。', '女子高生の流行や本音なんて、大人が上辺だけ知っていても見透かされるわよ。', 'ちゃんと見ててね、私が本物のJK知識ってものを教えてあげる。'],
+        win: ['……まったく、40歳にしてはなかなかやるじゃない。見直したわ。', '約束よ、このダンジョンはあなたの完全勝利。胸を張って次へ行きなさい。'],
+        lose: ['バカじゃないの？その程度の知識で私に挑もうだなんて。', '出直してきなさい。次はもう少し手応えのある勝負を期待してるわ。']
+      }
+    ],
+    clearAdv: [
+      '「女子高校生ダンジョン」を完全制覇した！',
+      '次郎「ははっ、青春の輝きと最新トレンドのスピード感に圧倒されたよ！」',
+      'クリアの証【トワイライトバニークラウン】を手に入れた！'
+    ]
+  },
+  {
+    id: 'ai',
+    name: 'AIダンジョン',
+    short: 'AI全般ダンジョン',
+    themeLabel: '2026年最新AI技術・エージェント・LLM・活用知識',
+    color: 'from-cyan-500 to-blue-600',
+    badgeColor: 'bg-cyan-500',
+    icon: '🧠',
+    chars: [
+      {
+        id: 'chizuru', name: '水原 千鶴', role: '第1の刺客', isBoss: false,
+        intro: ['こんにちは、水原千鶴です。ここからは女子大生チームがAI全般の知識でお相手します。', '推論モデルやAIエージェントなど、2026年の基礎教養です。しっかりしてくださいね。'],
+        win: ['お見事です。最新トレンドまでよく勉強されていますね。', '次は水崎さんが控えています。油断せずに頑張ってください。'],
+        lose: ['残念ですが、私の勝ちですね。', 'AIの世界は日進月歩です。しっかり復習してからまた挑戦してください。']
+      },
+      {
+        id: 'tsubame', name: '水崎 ツバメ', role: '第2の刺客', isBoss: false,
+        intro: ['ごきげんよう！水崎ツバメですわ！', 'マルチモーダルAIや動画・音声生成の進化、クリエイティブの現場では毎日が感動の連続ですわ！', '知識も思考も、もっと動いて見せてちょうだい！'],
+        win: ['素敵ですわ！技術の本質をちゃんと捉えていらっしゃるのね！', 'ボスの宇崎さんはとっても手強いですけれど、あなたなら突破できますわ！'],
+        lose: ['あらあら、今回はわたくしの勝ちですわね！', '新しい技術に触れるのは楽しいものですわ。ぜひまたお相手いたしますわ！']
+      },
+      {
+        id: 'uzaki', name: '宇崎 花', role: 'ダンジョンBOSS', isBoss: true,
+        intro: ['うっす！センパイ、よくここまで来たっすね〜！宇崎花っす！', 'ローカルLLMからRAG、MCP、AIガバナンスまで、ボスのウチが徹底的に試すっすよ！', 'ここで負けたら「知識ぼっち確定」っすよ〜！'],
+        win: ['うげぇっ！？マジっすかセンパイ、全部見抜かれたっす〜！', 'くっそ〜、認めるしかないっすね！AIダンジョンクリアおめでとうっす！'],
+        lose: ['いぇ〜い！ウチの勝ちっす！センパイまだまだ勉強不足っすね〜！', 'またいつでも挑戦待ってるっすよ！']
+      }
+    ],
+    clearAdv: [
+      '「AIダンジョン」を完全制覇した！',
+      '次郎「エージェントにマルチモーダル、ローカル推論……2026年のAIは本当に凄いな！」',
+      'クリアの証【シンギュラリティチップ】を手に入れた！'
+    ]
+  },
+  {
+    id: 'ai_img',
+    name: 'AI画像生成ダンジョン',
+    short: 'AI画像生成ダンジョン',
+    themeLabel: '画像生成AI・モデル・ControlNet・ComfyUI・設定知識',
+    color: 'from-emerald-500 to-teal-600',
+    badgeColor: 'bg-emerald-500',
+    icon: '🎨',
+    chars: [
+      {
+        id: 'holo', name: 'ホロ', role: '第1の刺客', isBoss: false,
+        intro: ['ふふ、人間の男よ。わっちは賢狼ホロじゃ。', '絵を生み出す呪文（プロンプト）やモデルの仕組み、わっちの鼻と知恵は誤魔化せぬぞ？', '勝ったら美味しいリンゴを奢ってもらおうかのぅ！'],
+        win: ['ほう……お主、なかなか賢い頭をしておるではないか。', 'わっちの負けじゃ。先のトールも手強いゆえ、気を引き締めていくのじゃぞ。'],
+        lose: ['かっかっか！わっちの勝ちじゃな！', '知識を蓄えてからまた来るがよい。その時はリンゴを忘れるでないぞ？']
+      },
+      {
+        id: 'tohru', name: 'トール', role: '第2の刺客', isBoss: false,
+        intro: ['こんにちは！ドラゴンのトールだよ！', 'LoRAの学習からControlNetの骨格制御、高解像度化（Hires.fix）まで、まかせて！', '油断してると知識ごと食べちゃおうかな〜！'],
+        win: ['うわぁっ、すごいすごい！人間なのにこんなに詳しいなんて！', 'わたしの負けだよ！ボスの長門さんはとっても静かだけど超強いから頑張ってね！'],
+        lose: ['やったー！トールの大勝利！', '画像生成の世界は奥が深いんだよ！またいつでも勝負しようね！']
+      },
+      {
+        id: 'nagato', name: '長門 有希', role: 'ダンジョンBOSS', isBoss: true,
+        intro: ['……よく来た。私がこのダンジョンの最終防衛機構、長門有希。', '拡散モデル、フローマッチング、ComfyUIノード構築、量子化VRAM最適化……。', 'あなたの知識パラメータを解析する。開始する。'],
+        win: ['……解析完了。あなたの知識精度は私の予測値を上回った。', '……了解した。全ダンジョン制覇の鍵を、あなたに託す。'],
+        lose: ['……検証終了。あなたの知識パラメータは基準値未満である。', '再学習を推奨する。次の挑戦を待機している。']
+      }
+    ],
+    clearAdv: [
+      '「AI画像生成ダンジョン」を完全制覇した！',
+      '次郎「サンプラーにLoRA、ComfyUIのノードまで……これで俺も立派な画像生成マスターだ！」',
+      'クリアの証【ジェネレーティブパレット】を手に入れた！'
+    ]
+  }
+];
+
+/* ============================================================================
+   5. 500 UNIQUE QUIZ QUESTIONS BANK (100 PER THEME, 2026 UPDATED, NO SCHOOL MATH)
+   Format: [question, choice0, choice1, choice2, choice3, correctIndex, note]
+============================================================================ */
+const QUIZ_BANK = {
+  // --------------------------------------------------------------------------
+  // THEME 1: 女子小学生 (100問: 2026流行・文房具・シール交換・放課後・悩み・キャラ)
+  // --------------------------------------------------------------------------
+  js: [
+    ["令和の女子小学生の間で再び大ブームになっている、ぷっくり立体感のあるシールの呼び名は？", "ドロップシール", "めんこシール", "瓦版シール", "切手シール", 0, "透明感や立体感のあるドロップシール・おはじきシール交換が大人気！"],
+    ["女子小学生の「シール交換」で、レアな立体シールと普通の平らなシールを交換する際の基本マナーは？", "レートを話し合って釣り合わせる", "黙って奪い取る", "ジャンケンで全部総取りする", "必ず1枚対10枚にする", 0, "お互いが納得するレート交渉が小学生女子の社会勉強になっています。"],
+    ["2026年の小学校高学年女子が「お姉さんっぽい！」と憧れるファッションテイストは？", "韓国っぽガーリー・Y2K風", "昭和の割烹着スタイル", "江戸の町娘スタイル", "全身迷彩サバゲー服", 0, "K-POPやティーン誌の影響で韓国風ガーリーやY2Kコーデが人気。"],
+    ["女子小学生が休み時間に友達と一番盛り上がる「プロフィール帳」の定番質問は？", "好きな人・推し・将来の夢", "住宅ローンの金利", "確定申告のやり方", "老後の年金プラン", 0, "サイン帳・プロフィール帳交換は今も昔も変わらない定番文化！"],
+    ["ランドセル選びの「ラン活」で、2026年入学者・小学生女子に特に人気の高いカラー傾向は？", "くすみパステル（ラベンダー・ミント等）", "蛍光ネオンイエロー一択", "真っ黒のみ", "迷彩柄のみ", 0, "くすみラベンダーやミントグリーン、ベージュなど上品な色が大人気。"],
+    ["女子小学生が放課後にゲームセンターやショッピングモールで夢中になるキッズアーケードカードのジャンルは？", "アイドル・ファッション着せ替え系", "麻雀プロリーグ戦", "競馬予想シミュレーター", "株取引シミュレーション", 0, "マイキャラを着せ替えてリズムゲームやライブをする筐体が定番！"],
+    ["小学生女子が「前髪」を気にして学校に持っていきたいけれど、校則で悩みがちなアイテムは？", "前髪コーム・ヘアクリップ", "溶接用ゴーグル", "ちょんまげカツラ", "自転車のヘルメット", 0, "アホ毛直しスティックや前髪コームは女子小学生の憧れアイテム。"],
+    ["女子小学生に人気のサンリオキャラクター大賞常連で、白い子犬の男の子キャラクターは？", "シナモロール", "ばつ丸の父", "ハンギョドンのタコ", "ぐでたまの殻", 0, "シナモロールは小学生女子から絶大な支持を集めています。"],
+    ["同じくサンリオで、頭巾をかぶったマイメロディのライバル的ポジションの人気キャラは？", "クロミ", "キティのパパ", "ポムポムプリンの靴", "けろっぴの兄", 0, "クロミの少しクールで可愛い世界観は小学生女子に大人気！"],
+    ["女子小学生が文房具屋さんで思わず集めたくなる「香り付き」文具の定番は？", "練り消し・香り付き消しゴム", "納豆の香りの定規", "ガソリン臭の鉛筆", "無臭の石ころ", 0, "フルーツやスイーツの香りの消しゴム・練り消しはコレクションの王道。"],
+    ["スマホをまだ持っていない女子小学生が、自分の連絡先やSNS代わりにプロフィール帳へ書くことが多いのは？", "ゲームのフレンドIDや親のLINE名", "マイナンバー", "銀行口座番号", "固定電話のFAX番号", 0, "Switchやタブレットゲームのフレンドコード交換がよく行われます。"],
+    ["女子小学生が「大人っぽくて憧れる！」と週末に友達と行きたがるお出かけスポットの定番は？", "原宿・ショッピングモールの雑貨店", "市役所の税務課", "高速道路のパーキングのみ", "証券取引所", 0, "ファンシー雑貨やスイーツショップが並ぶモールは大人気。"],
+    ["学校で「好きな男の子」の話題になったとき、女子小学生が照れ隠しでよく使う言葉は？", "「別に好きじゃないし！」", "「来週入籍します」", "「資産価値が高いです」", "「老後まで添い遂げます」", 0, "クラスで噂されるのを恥ずかしがる王道のリアクション！"],
+    ["女子小学生の悩みランキングで常に上位に入る「人間関係」のトラブルといえば？", "いつも一緒にいるグループでの仲間外れ不安", "会社の派閥争い", "PTA役員の押し付け合い", "町内会の回覧板遅延", 0, "「誰と誰が仲良し」「トイレに一緒に行く」などのグループ意識が強くなる時期です。"],
+    ["お小遣い500円握りしめて女子小学生が100円ショップや雑貨屋で買いがちなアイテムは？", "ヘアゴム・シール・ミニメモ帳", "高級万年筆", "ビジネス書", "盆栽セット", 0, "100均の可愛いヘアアクセやミニレターセットはコスパ抜群の人気商品。"],
+    ["女子小学生が誕生日に親へおねだりする定番のメイキングトイ（手作りおもちゃ）は？", "ホイップる・ぷにジェル系", "本格陶芸ろくろ窯", "鍛冶屋の日本刀鍛造キット", "自家製ビール醸造キット", 0, "本物みたいなスイーツデコやキーホルダーを作れるキットが大人気。"],
+    ["小学校の「移動教室・林間学校」の夜、女子部屋で一番盛り上がるイベントは？", "恋バナ（好きな人トーク）と枕投げ", "決算報告会", "株式市場の分析", "選挙演説の練習", 0, "消灯後に小声で話す恋バナは林間学校の醍醐味！"],
+    ["女子小学生の間で「字が上手い子」がクラスで重宝される場面は？", "係のポスターや黒板イラスト描き", "契約書の公正証書作成", "住民票の代筆", "株価チャートの作成", 0, "イラストや可愛い丸文字・デコ文字が書ける子はクラスの人気者！"],
+    ["女子小学生が「水筒」にこだわり始める高学年で選びがちなデザインは？", "シンプルロゴや韓国風ボトル", "一升瓶スタイル", "軍用水筒そのまま", "やかん直持ち", 0, "キャラもの卒業期にはシンプルでオシャレな直飲みボトルが人気。"],
+    ["「ちいかわ」の中で、水色の耳と尻尾を持ち、料理や草むしり検定を頑張る人気キャラは？", "ハチワレ", "ラッコの師匠の師匠", "鎧さんの親戚", "くりまんじゅうの先輩", 0, "健気で優しいハチワレは女子小学生からも大人気です。"],
+    ["女子小学生が冬場に学校へ着ていく服で「動きやすさと可愛さ」を両立する定番は？", "裏起毛トレーナー×プリーツスカパン", "十二単", "タキシード", "スキーウェア常時着用", 0, "インナーパンツ付きのスカパンは活発な小学生女子の必須アイテム。"],
+    ["学校の休み時間に女子小学生が夢中になる「手遊び・リズム遊び」の代表は？", "アルプス一万尺・CCレモンゲーム", "将棋のタイトル戦", "囲碁の十三路盤", "麻雀の点数計算", 0, "手拍子や掛け声で遊べるゲームは休み時間の定番です。"],
+    ["女子小学生が「習い事」で楽しんでいる率が高いクリエイティブ系習い事は？", "ダンス（K-POP・ヒップホップ）・ピアノ", "溶接技術講習", "大型特殊免許教習", "簿記1級講座", 0, "動画の影響もあり、K-POPダンスやピアノはとても人気があります。"],
+    ["女子小学生が友達との手紙交換でよく使う「折り方」といえば？", "ハート折り・シャツ折り・スマホ折り", "四つ折り封筒ビジネス形式", "巻物形式", "飛行機折り限定", 0, "メモ帳をハートやスマホの形に折って渡す手紙交換は定番文化！"],
+    ["高学年女子が「そろそろ卒業したい」と感じ始める持ち物の特徴は？", "幼児向けのアニメキャラ全面プリント", "シンプル無地", "大人っぽいブランドロゴ", "くすみカラー", 0, "低学年で好きだったキャラから少し背伸びしたデザインへ移行します。"],
+    ["女子小学生が放課後に公園や児童館で遊ぶとき、バッグに入れておく必須アイテムは？", "ハンカチ・ティッシュ・絆創膏・リップ", "印鑑証明", "パスポート", "予備のタイヤ", 0, "色付きではない保湿リップや可愛い絆創膏を持ち歩く子が増えます。"],
+    ["「すみっコぐらし」で、寒がりでいつも隅っこでお茶を飲んでいる緑色のキャラクターは？", "ぺんぎん？", "しろくま", "とんかつ", "ねこ", 0, "自分がペンギンなのか自信がない「ぺんぎん？」は人気キャラの一人。"],
+    ["女子小学生がYouTubeやショート動画でよく見ている人気ジャンルは？", "スライム作り・文房具紹介・ダンス動画", "国会中継フル視聴", "不動産投資セミナー", "ニュース解説専門チャンネル", 0, "ASMR系スライムや購入品紹介動画は小学生女子に大人気です。"],
+    ["小学校の「バレンタインデー」で、女子小学生が一番気合いを入れるのは？", "友チョコの大量生産とラッピング", "高級ブランデーボンボン", "取引先への贈答品", "株主に配る記念品", 0, "クラスの仲良しグループ全員に配る「友チョコ」作りが大イベント！"],
+    ["女子小学生が「シャープペンシル」を使い始めるときに憧れる機能は？", "芯が折れない・振ると芯が出る機能", "万年筆インク吸入機能", "レーザーポインター機能", "電動ドリル機能", 0, "鉛筆からシャーペンへの移行は高学年女子の大きなステップ！"],
+    ["女子小学生の「筆箱（ペンポーチ）」の中身で、ついつい増えすぎて重くなる原因は？", "カラーペンとマスコットキーホルダー", "予備の乾電池20本", "文鎮3個", "ドライバーセット", 0, "何十色ものカラーペンや太めのチャームでパンパンになりがち。"],
+    ["「プリキュア」シリーズを卒業した女子小学生が次にハマりやすいエンタメは？", "K-POPアイドル・ボカロ・少女漫画", "演歌全集", "時代劇専門チャンネル", "囲碁将棋チャンネル", 0, "音楽や漫画など少し大人っぽい世界へ興味が広がります。"],
+    ["女子小学生が「雨の日」の登下校でテンションが上がるアイテムは？", "グラデーションカラーの透明ビニール傘", "新聞紙マント", "段ボール帽子", "ゴムボート", 0, "オーロラやグラデーションの可愛い傘は雨の日の楽しみ！"],
+    ["小学校の「給食」で、女子小学生がじゃんけん争奪戦に参加しがちな人気デザートは？", "冷凍みかん・クレープ・プリン", "生のピーマン", "激辛唐辛子", "苦丁茶", 0, "おかわりじゃんけんは給食時間の熱いバトルです。"],
+    ["女子小学生が自分の部屋に飾りたがるインテリア雑貨の定番は？", "ぬいぐるみ・LEDフェアリーライト・推しグッズ", "巨大な鹿の剥製", "掛け軸「質実剛健」", "金庫", 0, "ベッド周りをぬいぐるみや可愛い雑貨で飾るのが夢！"],
+    ["女子小学生が「お母さんとケンカする理由」としてよくあるのは？", "片付け・宿題のタイミングと服装の好み", "会社の経営方針", "住宅リフォームのローン", "遺産相続", 0, "「今やろうと思ってたのに！」と「着たい服」の意見衝突は定番。"],
+    ["女子小学生の「夏休みの自由研究」で人気が高いテーマは？", "バスボム作り・スライム実験・スイーツ工作", "日本の財政赤字分析", "量子コンピュータ回路設計", "企業M&A事例研究", 0, "見た目も可愛くて実用的なバスボムや標本作りが人気です。"],
+    ["女子小学生が友達の家に遊びに行くときのお菓子の定番スタイルは？", "グミや小袋お菓子を持ち寄ってシェア", "高級懐石弁当持参", "プロテインシェイカーのみ", "生魚1匹", 0, "地球グミやシャインマスカットボンボン風など話題のグミが大人気！"],
+    ["2026年も女子小学生の間で根強い人気を誇る「グミ」の楽しみ方は？", "新発売の食感系グミをコンビニで探す", "グミを味噌汁に入れる", "グミで家を建てる", "グミを靴底に貼る", 0, "ハード系やジュレ入りなど、新作グミの情報交換が活発です。"],
+    ["女子小学生が「ヘアアレンジ」で休日に挑戦したくなる髪型は？", "編み込み・お団子ヘア・ハーフアップ", "パンチパーマ", "スキンヘッド", "リーゼント", 0, "YouTubeを見ながら自分で三つ編みやハーフアップを練習する子も多数。"],
+    ["小学校の「席替え」で、女子小学生が一番ドキドキする瞬間は？", "仲良しの友達や好きな人の近くになれるか", "エアコンの修理担当になるか", "黒板のチョーク製造担当になるか", "窓ガラス清掃業者になるか", 0, "席替えはクラスの人間関係が一変する一大イベント！"],
+    ["女子小学生に人気の漫画雑誌『ちゃお』『りぼん』『なかよし』の共通の魅力は？", "豪華なふろくとキラキラした恋愛・友情漫画", "株式相場の予想記事", "釣り堀の仕掛け図鑑", "資格試験の過去問", 0, "ポーチや文具、コミック風ミラーなどの豪華ふろくが毎月大人気！"],
+    ["女子小学生が「スマホを買ってもらう条件」として親と約束しがちなルールは？", "使用時間制限・フィルタリング・リビング充電", "毎日夜更かし放題", "課金無制限", "SNSに住所公開", 0, "フィルタリングと時間制限は家庭内ルールの定番です。"],
+    ["女子小学生が「秘密基地」を作って遊ぶときに使いたがる場所は？", "押し入れ・段ボール・公園の茂み", "銀行の貸金庫", "高速道路の料金所", "空港の管制塔", 0, "自分たちだけの空間を作って秘密の話をするのが大好き！"],
+    ["女子小学生が「推し活」で100円ショップのアイテムを使って手作りするのは？", "硬質カードケースのデコレーション", "木彫りの仏像", "陶器のお茶碗", "竹細工のざる", 0, "ホイップやシールでトレカケースをデコる「トレカデコ」が大人気。"],
+    ["女子小学生の「靴（スニーカー）」選びで厚底タイプが人気な理由は？", "スタイルが良く見えてお姉さんっぽいから", "水深2mの川を歩くため", "登山でアイゼンを付けるため", "スケートリンクを滑るため", 0, "少し厚底のスニーカーは脚が長く見えると高学年女子に人気。"],
+    ["小学校の「クラブ活動」で、女子小学生に毎年応募が殺到しやすい人気クラブは？", "イラスト・手芸・料理・ダンスクラブ", "コンクリート舗装クラブ", "重機操縦クラブ", "税務調査クラブ", 0, "絵を描いたりお菓子を作ったりできるクラブは抽選になることも！"],
+    ["女子小学生が「大人になったなぁ」と感じる瞬間としてよくあるのは？", "ブラックコーヒーや炭酸飲料を飲めたとき", "年金手帳を受け取ったとき", "老眼鏡を買ったとき", "人間ドックを受けたとき", 0, "ちょっとした苦味や炭酸をクリアすると背伸びした気分になります。"],
+    ["女子小学生が「ガチャガチャ（カプセルトイ）」でついつい回してしまうのは？", "ミニチュアお菓子やサンリオのめじるしアクセ", "ネジとナットの実用品", "領収書の束", "空白の紙切れ", 0, "傘の持ち手に付ける「めじるしアクセサリー」は大ブーム！"],
+    ["女子小学生の「お泊まり会」で夜更かしするときに用意したい飲み物は？", "フルーツジュースや炭酸ドリンク", "エスプレッソダブル", "栄養ドリンク3本", "白湯のみ", 0, "普段は早く寝る時間も、お泊まり会だけは特別な夜更かしタイム！"],
+    ["女子小学生が「学校で流行っている占い・心理テスト」を楽しむ方法は？", "休み時間にノートや本で友達同士で出し合う", "水晶玉を毎日持ち歩く", "タロット館を開業する", "占星術の論文を書く", 0, "恋占い・相性診断の本は図書室でも貸し出し争奪戦になります。"],
+    ["女子小学生が「一番恥ずかしい！」と感じる学校でのハプニングは？", "先生をうっかり「お母さん」と呼んでしまう", "給食を完食する", "テストで100点を取る", "掃除を真面目にする", 0, "誰もが一度は経験する「お母さん呼び」は赤面必至！"],
+    ["女子小学生が「修学旅行・校外学習」のお土産選びで迷いがちなものは？", "ご当地キーホルダーと家族へのお菓子", "掛け軸と壺", "業務用調味料5kg", "ダンベルセット", 0, "友達とお揃いのストラップやご当地キャラグッズが人気です。"],
+    ["女子小学生に人気の「サンリオ」で、ピンクの頭巾をかぶったウサギのキャラクターは？", "マイメロディ", "キキララの星", "ポチャッコの骨", "タキシードサムの蝶ネクタイ", 0, "マイメロディは親子二代で愛される王道キャラクターです。"],
+    ["女子小学生が「図工の授業」で一番テンションが上がる題材は？", "粘土スイーツやキラキラ工作・絵画", "コンクリートブロック積み", "配線工事", "配管溶接", 0, "ビーズやスパンコールを使った工作は目を輝かせて取り組みます。"],
+    ["女子小学生が「通学バッグ」にジャラジャラと付けたがるものは？", "お気に入りのぬいぐるみキーホルダーや缶バッジ", "南京錠10個", "レンチとスパナ", "重い鉄アレイ", 0, "スクールバッグ風にぬいぐるみを複数付けるスタイルが人気。"],
+    ["女子小学生が「冬の乾燥対策」としてポーチに入れがちな可愛いアイテムは？", "キャラデザインのハンドクリーム", "業務用ワセリンバケツ", "機械用グリス", "オリーブオイル瓶", 0, "いい香りのするミニハンドクリームは友達と塗り合うのも楽しみ！"],
+    ["女子小学生の「理想の誕生日ケーキ」で人気のデザインは？", "推しカラーやリボン・ティアラが乗ったケーキ", "無地の食パン1斤", "おにぎりタワー", "冷奴ホール", 0, "写真映えする可愛いデコレーションケーキが憧れです。"],
+    ["女子小学生が「読書」で夢中になりやすい児童文庫レーベルのジャンルは？", "学園ラブコメ・ミステリー・異世界ファンタジー", "六法全書解説", "経済白書", "医学専門書", 0, "角川つばさ文庫や青い鳥文庫などの学園・ミステリーは大人気。"],
+    ["女子小学生が「運動会」の朝に親へリクエストする特別な髪型は？", "編み込みツインテールやリボン付きポニーテール", "完全なオールバック", "帽子が被れない巨大アフロ", "濡れ髪のまま", 0, "帽子をかぶっても可愛く見える低めツインや編み込みが定番！"],
+    ["女子小学生が「習字（書写）」の授業で一番気をつけることは？", "お気に入りの服に墨汁をつけないこと", "筆を折ること", "半紙を食べること", "硯を割ること", 0, "墨汁は洗濯で落ちにくいため、習字の日は黒い服を着る子が多いです。"],
+    ["女子小学生が「夏祭り」で一番楽しみにしている屋台やイベントは？", "りんご飴・電球ソーダ・友達との浴衣", "確定申告相談ブース", "保険見直し窓口", "不動産査定コーナー", 0, "キラキラ光るドリンクやフルーツ飴はSNS映えも抜群！"],
+    ["女子小学生が「自分のサイン」を練習する理由は？", "プロフィール帳やノートに格好良く書きたいから", "小切手を切るため", "契約書に調印するため", "絵画の鑑定書を作るため", 0, "星やハートを混ぜたオリジナルサインを考えるのが楽しい時期です。"],
+    ["女子小学生の「お弁当」に入っていると友達に自慢したくなるおかずは？", "キャラ弁風デコおかずやハート型卵焼き", "丸ごとの生キャベツ", "乾燥わかめそのまま", "氷だけ", 0, "ピックで飾った可愛いおかずは遠足のお弁当の主役！"],
+    ["女子小学生が「放課後の習い事の合間」に食べるおやつの定番は？", "おにぎり・グミ・ミニパン・ジュース", "フルコースディナー", "激辛ラーメン大盛り", "生牡蠣", 0, "塾やダンスの前に手軽に食べられるおやつが重宝されます。"],
+    ["女子小学生が「友達とケンカした後の仲直り」でよく使う方法は？", "手紙を書いて渡す・交換ノートで謝る", "弁護士を立てる", "決闘を申し込む", "転校する", 0, "直接言いづらい「ごめんね」も手紙なら素直に伝えられます。"],
+    ["女子小学生の間で「かわいい！」と話題になる文房具の仕掛けは？", "振るとスパンコールが動くペンやクリア筆箱", "電撃が走るペン", "墨が噴き出す定規", "重さ3kgの消しゴム", 0, "中身が見えるクリアペンポーチに可愛い文具を並べるのが人気。"],
+    ["女子小学生が「ペットとして飼いたい！」と憧れる小動物ランキング上位は？", "トイプードル・ハムスター・うさぎ", "ワニ", "コモドドラゴン", "ホホジロザメ", 0, "ふわふわで可愛い小型犬やハムスターは永遠の憧れです。"],
+    ["女子小学生が「音楽の授業」でリコーダーを吹くときにやりがちなことは？", "休み時間にアニメや流行曲のメロディを耳コピする", "リコーダーを剣にして戦う", "リコーダーで湯を沸かす", "リコーダーを埋める", 0, "J-POPやアニメ主題歌をリコーダーで吹ける子は一目置かれます。"],
+    ["女子小学生が「図書館」で借りたがる本の特徴は？", "表紙のイラストが可愛くてシリーズ化している本", "電話帳", "官報", "辞書のみ", 0, "シリーズものは1巻から順番に予約して読むのが楽しみ！"],
+    ["女子小学生が「ハロウィン」で友達と楽しむ定番の過ごし方は？", "プチ仮装をしてお菓子交換パーティー", "山奥で滝行", "断食修行", "大掃除のみ", 0, "カチューシャやマントで気軽にお菓子を持ち寄るのが人気です。"],
+    ["女子小学生が「クリスマスプレゼント」にサンタさんへ書く手紙の工夫は？", "商品名や色を正確に書いて間違いを防ぐ", "「なんでもいい」とだけ書く", "暗号で書く", "白紙で出す", 0, "サンタさんが間違えないようにチラシの切り抜きを貼る子も！"],
+    ["女子小学生が「水泳の授業」で少し憂鬱になりがちな理由は？", "着替えや濡れた髪のセットが大変だから", "サメが泳いでいるから", "水が沸騰しているから", "水着が鉄製だから", 0, "ロングヘアの子はタオルキャップや髪乾かしが大変です。"],
+    ["女子小学生が「スマホケース・タブレットケース」を選ぶときの基準は？", "推しカラーのクリアケースにシールを挟む", "鉄板で完全溶接", "ケースなしで地面に落とす", "新聞紙で包む", 0, "クリアケースの中に好きなキャラのステッカーを挟むアレンジが定番。"],
+    ["女子小学生が「休日にショッピングモール」で見つけると必ず立ち寄る場所は？", "ガチャガチャコーナーとプリクラコーナー", "介護用品売り場", "仏壇仏具売り場", "ゴルフクラブ試打室", 0, "友達同士で撮るプリクラや最新のカプセルトイは外せません！"],
+    ["女子小学生が「朝ごはん」で時間がないときに好んで食べるものは？", "シリアル・トースト・ヨーグルト・フルーツ", "丸焼きの七面鳥", "鍋焼きうどん3杯", "おせち料理", 0, "手軽で甘みのあるパンやシリアルは朝の定番です。"],
+    ["女子小学生の「文房具交換」で一番価値が高いとされるアイテムは？", "限定デザインの香り付きペンやレアシール", "使いかけのボロボロ鉛筆", "芯のないシャーペン", "折れた定規", 0, "限定版やご当地デザインの文具は羨望の的になります。"],
+    ["女子小学生が「お姉ちゃん・お兄ちゃん」を見て羨ましいと思うことは？", "自分のスマホや遅い門限・夜更かし", "大量の宿題", "受験勉強", "満員電車通学", 0, "自由時間やスマホを持っている上のきょうだいに憧れがちです。"],
+    ["女子小学生が「クラス替え」の日に朝から緊張する最大の理由は？", "仲良しの友達と同じクラスになれるか", "給食がなくなるか", "校舎が消えるか", "先生が宇宙人になるか", 0, "新学期のクラス発表は1年で一番ドキドキする瞬間！"],
+    ["女子小学生が「ネイル」に興味を持ち始めたときに使う子供向けアイテムは？", "お湯やシールで簡単に剥がせるキッズネイル", "工業用ラッカー塗料", "油性マジック", "接着剤", 0, "休日だけ塗って月曜の朝に剥がせるピールオフネイルが大人気。"],
+    ["女子小学生が「保健室」に行くときによくある理由は？", "すり傷・腹痛・ちょっとした相談", "外科手術の執刀", "健康診断の実施", "薬の開発", 0, "優しい保健室の先生は女子小学生の心の支えでもあります。"],
+    ["女子小学生が「遠足のバスの中」で盛り上がるレクリエーションは？", "クイズ大会・しりとり・ビンゴゲーム", "無言の瞑想", "株価予測大会", "法律暗唱大会", 0, "バスレク係が用意したクイズやビンゴは大盛り上がり！"],
+    ["女子小学生が「お小遣い帳」をつけ始めるときに買うノートのデザインは？", "キャラクター付きでシールが貼れるお小遣い帳", "複式簿記の会計帳簿", "白紙のコピー用紙", "新聞の折り込みチラシ", 0, "貯まった金額を可視化できる可愛いお小遣い帳が人気です。"],
+    ["女子小学生が「放課後に家の近くで遊ぶ」ときの門限として一般的な時間帯は？", "夕方4時半〜5時半頃（季節による）", "深夜2時", "翌朝6時", "正午12時", 0, "「夕焼けチャイムが鳴ったら帰る」が多くの地域のルールです。"],
+    ["女子小学生が「鏡の前」でこっそり練習しがちなことは？", "可愛い笑顔の作り方やウインク・ダンス", "歌舞伎の見得", "相撲の四股", "落語の扇子さばき", 0, "写真写りを良くするために鏡で表情を研究する子が増えています。"],
+    ["女子小学生が「お年玉」をもらったときに一番最初にやりがちなことは？", "金額を数えて欲しいものリストと照らし合わせる", "全額を海外FXに投資する", "金塊を買う", "庭に埋める", 0, "普段買えないゲームソフトや雑貨を買う計画を立てるのが楽しみ！"],
+    ["女子小学生が「好きなキャラクターの誕生日」にお祝いする方法は？", "グッズを並べて写真を撮ったり絵を描いたりする", "記者会見を開く", "祝日制定を国会に申請する", "銅像を建てる", 0, "「生誕祭」としてグッズを飾ってお祝いする文化が小学生にも浸透！"],
+    ["女子小学生が「学校で禁止されているのに持ってきがち」な誘惑アイテムは？", "可愛いキーホルダーやリップ・お菓子", "大型バイク", "冷蔵庫", "洗濯機", 0, "「1個だけなら…」と筆箱にこっそりチャームを付けがちです。"],
+    ["女子小学生が「夏休みのプール」の帰りに友達と買いたくなるものは？", "アイスや冷たいジュース", "熱々の鍋焼きうどん", "カイロ10個", "毛布", 0, "プールの後のセブンティーンアイスなどは格別の美味しさ！"],
+    ["女子小学生が「おそろい（双子コーデ）」を友達とするときに合わせるポイントは？", "髪型・ヘアピン・服の色やキーホルダー", "指紋", "血液型", "視力", 0, "「おそろっち」のストラップやヘアゴムは友情の証！"],
+    ["女子小学生が「将来なりたい職業」ランキングで近年常に上位に入るものは？", "パティシエ・イラストレーター・アイドル・先生", "炭鉱夫", "蒸気機関車機関士", "飛脚", 0, "可愛いものを作る仕事や表現する仕事が大人気です。"],
+    ["女子小学生が「家庭科の調理実習」で初めて作って感動しがちなメニューは？", "ゆで卵・野菜炒め・白玉だんご", "北京ダック", "ふぐ刺しフルコース", "キャビアの燻製", 0, "自分たちで包丁や火を使って作る調理実習は大イベント！"],
+    ["女子小学生が「スマホやSwitchの壁紙」に設定しがちな画像は？", "推しキャラ・ペット・友達との写真", "真っ黒な画面のみ", "エラー画面", "確定申告書の控え", 0, "画面を開くたびに気分が上がる推し画像が定番です。"],
+    ["女子小学生が「雨が降って外で遊べない日」に教室でやる遊びは？", "お絵かき・折り紙・人狼やワードウルフ", "教室でサッカー", "廊下で水泳", "黒板で焚き火", 0, "自由帳にイラストを描いたり心理ゲームをするのが人気です。"],
+    ["女子小学生が「新しい学期」に一番ワクワクする買い物は？", "新しい筆箱・下敷き・ノートの文房具一式", "業務用コピー機", "オフィスチェア", "シュレッダー", 0, "新学期前に文房具を揃えるのは小学生最大の楽しみの一つ！"],
+    ["女子小学生が「好きな男の子に優しくされたとき」に友達へ報告する言葉は？", "「ねえ聞いて！今日〇〇くんがね…！」", "「業務連絡です」", "「議事録を共有します」", "「決算短信が出ました」", 0, "放課後の帰り道での恋バナ報告会は女子小学生の青春！"],
+    ["女子小学生が「ヘアゴム」を選ぶときに一番テンションが上がるデザインは？", "リボン・ハート・キラキラビーズ付き", "輪ゴムそのまま", "針金", "結束バンド", 0, "髪を結ぶだけで可愛くなれるリボンゴムは大人気です。"],
+    ["女子小学生が「100均のシールコーナー」で必ずチェックする種類は？", "フレークシール・クリアシール・ぷっくりシール", "水道工事用シールテープ", "封印シール", "駐車違反ステッカー", 0, "手帳や手紙に貼れるフレークシールは何種類も集めたくなります。"],
+    ["女子小学生が「家族での外食」で一番テンションが上がるお店のジャンルは？", "回転寿司・ファミレス・スイーツビュッフェ", "高級割烹カウンター", "立ち食いそばのみ", "社員食堂", 0, "タッチパネル注文やデザートが選べる回転寿司・ファミレスが大人気！"],
+    ["女子小学生が「ゲームやアニメの推し」を語るときに一番熱が入るポイントは？", "「ビジュが良すぎる！」「尊い！」", "「株主優待が充実している」", "「減価償却費が少ない」", "「燃費がリッター30km」", 0, "ネット用語の「ビジュがいい」「尊い」は小学生女子にも定着しています。"]
+  ],
+
+  // --------------------------------------------------------------------------
+  // THEME 2: 女子中学生 (100問: 2026流行・SNS・前髪・部活・人間関係・推し活)
+  // --------------------------------------------------------------------------
+  jc: [
+    ["女子中学生が朝の登校前に一番時間をかけて死守しようとするパーツは？", "前髪（ケープで固める）", "足の小指の爪", "耳たぶの角度", "膝の裏", 0, "「前髪が崩れると1日のテンションが終わる」は女子中学生の共通認識！"],
+    ["女子中学生の間で定着している、通知が来てから2分以内に前後カメラで同時撮影するSNSは？", "BeReal.（ビーリアル）", "mixi足あと帳", "2ちゃんねる", "Skype", 0, "盛らないリアルな日常を共有するBeReal.は中高生の定番SNSです。"],
+    ["女子中学生の「スクバ（スクールバッグ）デコ」で2026年も人気のアイテムは？", "ぬいぐるみキーホルダー大量付けと落書き", "鉄アレイのぶら下げ", "鍋とフライパン", "電卓10個", 0, "制服のスクバに推しのぬいやキーホルダーをジャラ付けするのがトレンド！"],
+    ["女子中学生がInstagramの「親しい友達（緑の輪っか）」機能を使う主な理由は？", "本音や盛れてない写真・恋バナを限定公開するため", "世界中に拡散するため", "学校の先生に提出するため", "ニュース速報を流すため", 0, "表アカウントと親しい友達ストーリーズの使い分けはJCの必須スキル。"],
+    ["女子中学生が初めてメイクに興味を持ったとき、最初に買いがちなコスメは？", "ティントリップ・クリアマスカラ・涙袋ライナー", "舞台用ドーラン", "歌舞伎の白塗り", "特殊メイク用傷シール", 0, "スクールメイクでもバレにくい透明マスカラや涙袋メイクが大人気。"],
+    ["女子中学生の「LINEグループ」で暗黙の了解になりがちなマナーは？", "既読無視しすぎず、スタンプで区切りをつける", "深夜3時に長文連投する", "毎回電話をかける", "全員を即退会させる", 0, "返信のタイミングやスタンプの空気感は人間関係でとても重要です。"],
+    ["女子中学生が放課後にプリクラを撮るとき、最近の機種で重視するポイントは？", "ナチュラル盛りと撮影中の動画データ保存", "白黒証明写真風のみ", "モザイク加工のみ", "印刷まで3時間かかる", 0, "やりすぎないナチュラルな瞳の盛り具合とスマホ転送機能が人気です。"],
+    ["女子中学生が「恋愛相談」を友達にするときによく出るキーワードは？", "「脈ありかな？」「DMの返信速度」", "「結納金の相場」", "「二世帯住宅の間取り」", "「遺産分割協議」", 0, "SNSのDMやLINEの返信スピード・質問の有無で脈あり判定をします。"],
+    ["女子中学生が「制服の着こなし」で可愛く見せるために工夫するポイントは？", "スカートの丈感・リボンやネクタイの結び方・ルーズ風ソックス", "コートを10枚重ね着", "ジャージを頭から被る", "靴を左右逆に履く", 0, "校則の範囲内で可愛く見えるバランスを研究しています。"],
+    ["女子中学生が「テスト前」に友達とやりがちな行動は？", "「今回マジで勉強してない！」と言い合う", "互いのノートを燃やす", "徹夜でマラソン大会をする", "試験会場を間違える", 0, "「全然やってない」はテスト前の定番挨拶！"],
+    ["女子中学生の間で流行している、推しの写真やトレカを持ち歩くためのアイテムは？", "硬質ケースデコ・推し活ポーチ・アクスタケース", "ジュラルミンケース", "米袋", "段ボール箱", 0, "アクリルスタンドやトレカを傷つけずに持ち歩く専用ケースが大人気。"],
+    ["女子中学生が「スマホのカメラ」で友達と撮るときに人気のエフェクト・撮り方は？", "広角0.5倍（上から自撮り）・フラッシュ撮影", "望遠レンズで1km先から撮影", "サーモグラフィ撮影", "レントゲン撮影", 0, "インカメや外カメ0.5倍で上から撮るスタイルは定番の映え構図！"],
+    ["女子中学生が「部活動」で経験しがちな人間関係の悩みは？", "先輩後輩の上下関係とレギュラー争い", "株主総会の議決権", "労働組合のストライキ", "海外支店の転勤", 0, "部活内の礼儀や先輩への気遣いは中学生活の大きなテーマです。"],
+    ["女子中学生が「修学旅行（中3）」の夜に一番楽しみにしていることは？", "同じ班の女子と夜通し恋バナ・お菓子パーティー", "一人で早寝すること", "旅館の布団を数えること", "廊下で正座すること", 0, "京都・奈良などの修学旅行の夜は中学生活最高の思い出！"],
+    ["女子中学生が「美容院」に行くときに一番緊張するオーダーは？", "「前髪は目にかからないギリギリでお願いします！」", "「全部剃ってください」", "「モヒカンにしてください」", "「お任せで50cm切ってください」", 0, "数ミリの違いで印象が変わる前髪カットは真剣そのもの！"],
+    ["女子中学生が「コンビニ」で放課後に買いがちなトレンドスイーツは？", "グミ・タピオカ風ドリンク・新作アイス", "高級キャビア缶", "生レバー", "乾燥スルメ1kg", 0, "SNSでバズった新作スイーツを友達とシェアするのが楽しみ。"],
+    ["女子中学生が「TikTokやリール動画」を撮るときに意識することは？", "流行りの音源に合わせて友達と息を合わせる", "無音で棒立ちする", "カメラを地面に向ける", "画質を最低にする", 0, "流行りの振り付けを休み時間に練習して撮るのが人気です。"],
+    ["女子中学生の「筆箱」で、小学生時代と大きく変わるトレンドは？", "シンプルで大人っぽい大容量ポーチやメッシュ筆箱", "音が鳴るおもちゃ箱", "巨大な缶ペンケースのみ", "筆箱を持たない", 0, "韓国風のメッシュポーチや落ち着いたブランドのペンケースが定番。"],
+    ["女子中学生が「体育祭・文化祭」で盛り上がる特別なヘアアレンジは？", "お団子・ツインテールにハチマキやリボンを巻く", "ヘルメット着用義務", "寝癖のまま登校", "カツラを被る", 0, "お揃いの髪型やメガホンデコでクラス写真を撮りまくります！"],
+    ["女子中学生が「友達の誕生日」にSNSでやるお祝い文化は？", "思い出の写真や動画を繋げたバースデームービー投稿", "新聞に全面広告を出す", "電光掲示板を借り切る", "花火大会を開催する", 0, "CapCutなどで編集した歌詞動画・思い出動画は友情の証！"],
+    ["女子中学生が「スマホの電池残量」を見て焦り始めるラインは？", "20%を切って赤表示になったとき", "99%になったとき", "100%満充電のとき", "電源を切ったとき", 0, "モバイルバッテリーを持ち歩く女子中学生も増えています。"],
+    ["女子中学生が「自分の体型や見た目」で気にしがちなことは？", "むくみ・肌荒れ（ニキビ）・身長や脚のライン", "老眼の進行", "白髪の増加", "五十肩", 0, "思春期特有のニキビケアや小顔マッサージ動画をよく見ています。"],
+    ["女子中学生が「好きな人と目が合ったとき」にやりがちな行動は？", "恥ずかしくてパッと目を逸らしてしまう", "10分間じっと睨みつける", "大声で叫ぶ", "その場でダッシュして逃げる", 0, "目を逸らした後に友達と「今目合ったよね！？」と小声で盛り上がります。"],
+    ["女子中学生が「雑貨屋（PLAZAやLOFTなど）」で目を輝かせて見るコーナーは？", "韓国コスメ・キャラクター雑貨・ステーショナリー", "工具・DIYコーナー", "園芸・肥料コーナー", "カー用品コーナー", 0, "可愛いパッケージのコスメや海外お菓子はテンション爆上がり！"],
+    ["女子中学生の「スマホのホーム画面」のこだわりポイントは？", "ウィジェット機能で色味やアイコンを統一する", "アプリを1つも置かない", "アイコンを全部消す", "文字を最大サイズにする", 0, "推しカラーやモノトーンなど世界観を統一したホーム画面が人気。"],
+    ["女子中学生が「お小遣いの使い道」で優先度が高くなるものは？", "コスメ・推し活グッズ・友達とのカフェ代", "不動産投資", "高級腕時計", "骨董品収集", 0, "小学生の頃より「見た目」や「友達との交際費」の割合が増えます。"],
+    ["女子中学生が「学校で一番気まずい瞬間」としてよくあるのは？", "廊下で知らない先輩とすれ違うときの挨拶タイミング", "給食を食べること", "チャイムが鳴ること", "教科書を開くこと", 0, "先輩への挨拶は礼儀としてとても意識されます。"],
+    ["女子中学生が「雨の日の登校」で一番嫌がることは？", "湿気で前髪がうねったり巻いた髪が取れること", "傘をさすこと", "長靴を履くこと", "雨音が聞こえること", 0, "湿気対策のヘアオイルや前髪パウダーが重宝されます。"],
+    ["女子中学生が「休日」に友達と遊ぶときの定番プランは？", "ショッピングモールでプリクラ→雑貨屋→フードコート", "早朝から登山縦走", "図書館で12時間沈黙", "釣り堀で一日過ごす", 0, "プリクラを撮って雑貨を見てカフェやフードコートでおしゃべりが王道！"],
+    ["女子中学生が「ボカロ・ネット発アーティスト」の曲にハマるきっかけは？", "ショート動画のBGMやリズムゲーム（プロセカ等）", "ラジオのAM放送", "レコード盤の収集", "楽譜の立ち読み", 0, "音ゲーやSNS音源から最新のボカロ・J-POPを知るケースが多数。"],
+    ["女子中学生が「クラスの男子」に対してよく抱く感想は？", "「精神年齢が幼い！」「ノリが小学生！」", "「渋くてダンディ」", "「貫禄が社長レベル」", "「落ち着きすぎている」", 0, "女子のほうが精神的に大人びるため、男子の幼さに呆れがちです。"],
+    ["女子中学生が「夏休み」に友達と計画したがる映えイベントは？", "浴衣で夏祭り・花火大会・ナイトプール風写真", "早朝ラジオ体操皆勤賞のみ", "草むしりボランティアのみ", "毎日家で寝るだけ", 0, "浴衣を着て友達と写真を撮るのは夏休みの大きなイベント！"],
+    ["女子中学生が「合唱コンクール」で燃えるポイントは？", "クラス団結して金賞を目指すこと・伴奏や指揮者", "誰が一番小声で歌うか", "歌詞を全部忘れること", "本番で寝ること", 0, "最初は照れていた男子も本番前に団結するドラマが生まれます。"],
+    ["女子中学生が「イヤホン」を選ぶときに人気のタイプは？", "ワイヤレスイヤホン（AirPodsや可愛いパステル系）", "巨大なスタジオ用ヘッドホン有線10m", "糸電話", "メガホン", 0, "通学や勉強中に音楽を聴くワイヤレスイヤホンは憧れアイテム。"],
+    ["女子中学生が「推し活」でライブやイベントに行くときの定番アイテムは？", "うちわ・ペンライト・推しカラーの服やバッグ", "農作業用くわ", "釣り竿", "虫取り網", 0, "名前うちわを手作りして参戦するのが楽しいイベント！"],
+    ["女子中学生が「夜ふかし」してスマホでついつい見てしまうものは？", "推し動画・恋愛漫画アプリ・友達とのDM", "株価の夜間取引", "天気図の等圧線解説", "国会議事録", 0, "気づいたら0時を過ぎていて親に怒られるのはあるあるです。"],
+    ["女子中学生が「冬の防寒」で制服に合わせる可愛いアイテムは？", "ボリュームマフラー・レッグウォーマー・カーディガン", "毛皮のコート3枚重ね", "スキーゴーグル", "ダウン寝袋", 0, "ふわふわのマフラーに顔をうずめる「マフラー女子」が人気！"],
+    ["女子中学生が「塾」に通い始めて感じるメリットは？", "他校の友達ができたり、先生と話すのが楽しい", "給食が食べられる", "体育の授業がある", "修学旅行に行ける", 0, "他の中学校の生徒と仲良くなれるコミュニティの場にもなります。"],
+    ["女子中学生が「鏡・くし」を持ち歩くときに選ぶ人気の形は？", "折りたたみ式のキャラミラーや前髪専用コーム", "全身姿見", "手鏡ではなくフライパン", "金属製の熊手", 0, "制服のポケットやポーチにスッと入るサイズが人気です。"],
+    ["女子中学生が「バレンタイン」で本命チョコを渡すときの王道シチュエーションは？", "放課後に呼び出して直接渡す・下駄箱や机の中", "全校集会の壇上で発表", "宅配便で着払い発送", "新聞に折り込む", 0, "放課後の教室や帰り道はドキドキの舞台！"],
+    ["女子中学生が「スマホの写真フォルダ」に一番多く保存しているものは？", "友達との自撮り・プリクラ・推しのスクショ", "領収書の写真", "家電の取扱説明書", "道路標識のみ", 0, "ストレージ容量がいっぱいになる原因のほとんどが写真と動画！"],
+    ["女子中学生が「好きなタイプ」を聞かれたときによく挙げる条件は？", "優しくて面白い人・話が合う人・清潔感がある人", "年収5000万円以上", "持ち家一戸建て所有", "退職金が充実している人", 0, "「優しくて一緒にいて楽しい人」がダントツの人気です。"],
+    ["女子中学生が「カラオケ」に行ったときに盛り上がる歌い方は？", "流行りのアイドル曲やボカロ曲をみんなで合唱・タンバリン", "演歌を一人で黙々と歌う", "お経を唱える", "マイクを使わず囁く", 0, "サビで全員で盛り上がれる曲や推し曲が定番！"],
+    ["女子中学生が「靴下」の長さや色で意識しているトレンドは？", "紺ソックスや白ソックスの絶妙な丈感・ワンポイント刺繍", "左右で違う色のハイソックス", "靴下を履かない", "長靴下を太ももまで上げる", 0, "ワンポイント刺繍入りのソックスは制服コーデの定番です。"],
+    ["女子中学生が「進路（高校選び）」を意識し始める中3で重視するポイントは？", "校則の自由度（スマホ・髪型）・制服の可愛さ・通いやすさ", "学食のメニューが1種類だけ", "毎日マラソンがある", "制服が鎧", 0, "可愛い制服や自由な校風は志望校選びの大きなモチベーション！"],
+    ["女子中学生が「放課後の教室」でよく撮る青春ショットは？", "黒板アートの前や窓際でのシルエット写真", "ゴミ箱のアップ", "天井の蛍光灯のみ", "床の傷", 0, "黒板にチョークで落書きして撮る写真はSNSでも大人気です。"],
+    ["女子中学生が「ヘアアイロン」を初めて使うときにやりがちな失敗は？", "おでこや首に当たって軽く火傷しそうになる", "アイロンで制服のズボンを焼く", "髪を全部溶かす", "アイロンを冷蔵庫に入れる", 0, "前髪を巻こうとしておでこに「ジュッ」と当ててしまうのは通過儀礼！"],
+    ["女子中学生が「文房具」でシャーペンの芯を選ぶときのこだわりは？", "折れにくくて濃く滑らかに書ける0.5mmや0.3mm", "太さ5mmの芯", "色のつかない透明な芯", "折れやすい芯", 0, "手帳やノートを綺麗に書くために0.3mmを愛用する女子も多いです。"],
+    ["女子中学生が「学校の帰り道」に友達と必ずと言っていいほどしていることは？", "その日の出来事や先生・恋愛の話をしながらゆっくり歩く", "全力疾走で無言帰宅", "後ろ向きで歩く", "スキップのみで帰宅", 0, "何気ない帰り道のおしゃべりが一番楽しい時間です。"],
+    ["女子中学生が「スマホのケース」に挟む定番アイテムは？", "プリクラ・推しのトレカ・ショップステッカー", "1万円札10枚", "保険証", "電車の定期券のみ", 0, "プリクラや推しのステッカーを挟んで自分らしさを出します。"],
+    ["女子中学生が「生理痛や体調不良」のときに友達同士で助け合う行動は？", "カイロや痛み止め・予備のアイテムをさりげなく貸し合う", "大声で全校放送する", "放置する", "体育に無理やり参加させる", 0, "女子同士の思いやりや助け合いがとても心強い場面です。"],
+    ["女子中学生が「SNSのプロフィール欄（Bio）」に書きがちな情報は？", "学年・部活・推しマーク・MBTI診断結果", "マイナンバー", "自宅の鍵の隠し場所", "銀行暗証番号", 0, "16タイプ性格診断（MBTI）の結果を載せるのが大流行！"],
+    ["女子中学生の間で会話のネタになる「MBTI（16タイプ性格診断）」の楽しみ方は？", "「私ENFPだから〜」「相性いいじゃん！」と盛り上がる", "MBTIで進路を強制決定する", "知らない人を診断で追い返す", "テストの点数にする", 0, "自分の性格タイプを把握して友達と相性を語るのが定番です。"],
+    ["女子中学生が「日焼け対策」として夏場に持ち歩くアイテムは？", "トーンアップ日焼け止め・日傘・ハンディファン", "サンオイル", "鉄板の盾", "冬用ダウンジャケット", 0, "携帯扇風機（ハンディファン）とUVケアは夏の必須セット！"],
+    ["女子中学生が「ペットボトル飲料」を選ぶときに意識しがちなことは？", "水やお茶、カロリー控えめ・可愛いパッケージ", "1日5リットルの砂糖水", "醤油ボトル", "ソースボトル", 0, "美容や体型を意識して水やお茶を選ぶ子が増えています。"],
+    ["女子中学生が「推し活」で友達と集まって行う楽しいイベントは？", "推しのライブ映像鑑賞会・本人不在の誕生日会", "推しのグッズを川に流す会", "無言で壁を見る会", "筋トレ合宿", 0, "部屋を飾り付けてケーキを用意する「本人不在の誕生日会」が大人気！"],
+    ["女子中学生が「体育の授業」の後に必ず行う身だしなみチェックは？", "汗拭きシートと前髪の手直し", "メイクを全部落とす", "髪を短く切る", "制服を裏返しに着る", 0, "いい香りのボディシートは女子ロッカーの必需品です。"],
+    ["女子中学生が「ゲームアプリ」で友達とボイスチャットしながら遊ぶ人気ジャンルは？", "バトルロイヤル・協力脱出・リズムゲーム", "将棋の封じ手待機", "ソロ専用数独", "電卓早打ち", 0, "通話を繋ぎながら一緒に遊べるゲームは放課後の定番です。"],
+    ["女子中学生が「親に言われて一番イラッとしがちな言葉」は？", "「スマホばっかり見て！」「勉強しなさい！」", "「お小遣い増やそうか？」", "「好きな服買っていいよ」", "「今日はデザート付きだよ」", 0, "まさにやろうとしていたタイミングで言われると反発したくなります。"],
+    ["女子中学生が「卒業式（中3）」の日に友達と約束しがちなことは？", "「高校別々になっても絶対遊ぼうね！」「写真撮ろう！」", "「二度と連絡しないでね」", "「卒業証書を破ろう」", "「全員で引っ越そう」", 0, "涙と笑顔でいっぱいになる中学卒業の日の定番の言葉です。"],
+    ["女子中学生が「図書館や本屋」で手に取るファッション雑誌の代表は？", "『nicola（ニコラ）』『Seventeen』など", "『週刊ダイヤモンド』", "『月刊釣り人』", "『農作業の友』", 0, "モデルの着こなしやコスメ特集はファッションの教科書！"],
+    ["女子中学生が「スマホの通知」で一番テンションが上がる瞬間は？", "好きな人からのDM返信や推しのSNS更新通知", "電池残量低下の警告", "システムアップデートの案内", "迷惑メール", 0, "好きな人からの通知が来た瞬間のドキドキは格別です。"],
+    ["女子中学生が「冬の体育」でジャージを着るときにやりがちな工夫は？", "袖を少し長めに出す「萌え袖」や裾の調整", "ジャージを腰に巻いて上半身裸", "頭から被って前が見えない状態", "ズボンを片足だけ履く", 0, "ジャージ姿でも可愛く見える着こなしを意識します。"],
+    ["女子中学生が「文房具」で蛍光ペンを使うときのトレンドカラーは？", "目に優しいくすみカラー・マイルドライナー系", "目が痛くなる超蛍光ネオンのみ", "真っ黒の塗りつぶしペン", "透明で何も書けないペン", 0, "ノートがオシャレに見えるくすみ系マーカーが大人気！"],
+    ["女子中学生が「友達の家に泊まる」ときに持参するパジャマの定番は？", "お揃いの可愛いルームウェアやスウェット", "甲冑", "燕尾服", "ウェットスーツ", 0, "可愛いルームウェアで写真を撮るのもお泊まり会の楽しみ。"],
+    ["女子中学生が「学校の委員会活動」で人気がある委員会は？", "図書委員会・放送委員会・保健委員会", "校庭の石拾い専門委員会", "雨どい清掃委員会", "チョーク粉回収委員会", 0, "お昼の放送で好きな曲を流せる放送委員会などは人気があります。"],
+    ["女子中学生が「お菓子作り」でバレンタインや休日に挑戦しやすいメニューは？", "生チョコ・クッキー・マカロン風・ガトーショコラ", "和菓子の練り切り職人技", "飴細工の龍", "結婚式用5段ケーキ", 0, "オーブンやレンジで作れる簡単アレンジレシピがSNSで人気です。"],
+    ["女子中学生が「夏服の制服」で気をつけるインナー選びのポイントは？", "白シャツから透けにくいベージュや白・汗対策", "真っ赤な蛍光インナー", "セーターを3枚着込む", "カッパを着る", 0, "透け防止と汗対策は夏服シーズンの重要な身だしなみ。"],
+    ["女子中学生が「流行語・若者言葉」を使うときの主な情報源は？", "TikTok・YouTube・クラスの流行り", "江戸時代の古文書", "新聞の社説", "百科事典", 0, "SNSでバズったフレーズが翌日にはクラス全員に広まります。"],
+    ["女子中学生が「定期テストの勉強」でやる気を出すためにやることの定番は？", "机の上を片付けてお気に入りの飲み物とお菓子を用意する", "教科書を枕にして寝る", "テレビを3台同時につける", "部屋の電気を全部消す", 0, "まず環境を整えてから始めるのが定番のルーティン！"],
+    ["女子中学生が「ヘアアクセサリー」で韓国風コーデに合わせやすいアイテムは？", "バンスクリップ（大きめヘアクリップ）・リボンピン", "巨大なヘルメット", "安全第一の工事帽", "麦わら帽子通年着用", 0, "サッと髪をまとめられるバンスクリップは大人気です。"],
+    ["女子中学生が「スマホのカメラロール」を整理するときに残す写真は？", "盛れた写真・楽しかった思い出・推しのベストショット", "ブレブレの床の写真", "真っ暗なポケットの中", "間違えて撮った天井", 0, "ベストショットを厳選してインスタやBeRealにアップします。"],
+    ["女子中学生が「友達との距離が縮まる」きっかけとしてよくあるのは？", "同じ推しや趣味（アニメ・K-POP・ゲーム）が判明したとき", "住所が同じ県だったとき", "呼吸していることがわかったとき", "靴を履いているとき", 0, "共通の「推し」が見つかった瞬間の盛り上がりは凄まじいです。"],
+    ["女子中学生が「学校給食・お弁当」でダイエットや体型を気にしてやりがちなことは？", "食べる順番を意識したり、間食を少し控えたりする", "1週間水だけ飲む", "給食を全部友達にあげる", "毎日5000kcal食べる", 0, "無理なダイエットではなくバランスを意識する子が増えています。"],
+    ["女子中学生が「休日の朝」に遅くまで寝ていたい理由は？", "平日の朝練や通学・勉強の疲れを癒やしたいから", "冬眠するため", "時差ボケのため", "夜行性になったため", 0, "平日は朝早くから部活や準備で忙しい中学生の貴重な休息です。"],
+    ["女子中学生が「友達とプリクラを撮る前」に必ずする準備は？", "鏡で前髪・リップ・ポーズの打ち合わせをする", "顔を泥で塗る", "目を閉じたまま入る", "無表情の練習をする", 0, "限られた撮影時間内に最高のポーズを決めるための作戦会議！"],
+    ["女子中学生が「文化祭のクラス出し物」でテンションが上がる企画は？", "お化け屋敷・縁日・フォトスポットカフェ・ダンス発表", "黙読大会", "漢字書き取りマラソン", "計算ドリル大会", 0, "写真映えする装飾や体験型企画は毎年大盛り上がり！"],
+    ["女子中学生が「好きな人とのLINE」で会話が終わらないようにするテクニックは？", "質問形で返したり、共通の話題を広げる", "「うん」だけで返す", "スタンプ1個で終了させる", "3ヶ月後に返信する", 0, "「〇〇くんはどう思う？」と質問を添えるのが王道テク！"],
+    ["女子中学生が「新しいリップ」を買った日に一番やりたいことは？", "鏡で色味を確認して友達に「これ可愛くない？」と見せる", "リップを全部折る", "壁に落書きする", "冷蔵庫の奥に隠す", 0, "発色やツヤ感を友達とレビューし合うのが楽しい時間です。"],
+    ["女子中学生が「通学靴（ローファーやスニーカー）」で悩みがちなことは？", "新品のローファーの靴擦れや雨の日の浸水", "靴底にタイヤがついていること", "重さが10kgあること", "光りすぎて眩しいこと", 0, "入学直後のローファー靴擦れは絆創膏が必須です。"],
+    ["女子中学生が「放課後のファストフード店」で友達と楽しむ定番メニューは？", "ポテトをシェアしながらドリンクで何時間も話す", "ハンバーガー10個一気食い", "水だけ頼んで5時間滞在", "テイクアウトして即解散", 0, "ポテトとドリンクは放課後トークの最高の相棒です。"],
+    ["女子中学生が「推しカラー」を日常に取り入れる方法として人気なのは？", "文房具・スマホケース・靴紐・ヘアゴムに推し色を使う", "全身を蛍光塗料で塗る", "家の外壁を塗り替える", "髪を毎週ブリーチする", 0, "さりげなく推し色を取り入れる「概念推し活」が人気！"],
+    ["女子中学生が「体育祭の応援合戦」で張り切るポイントは？", "ダンスの振り付けや声出し、お揃いの応援グッズ作り", "誰が一番静かに座っていられるか", "応援団を解散させること", "競技を全部棄権すること", 0, "クラスや団が一丸となって盛り上がる大きなイベントです。"],
+    ["女子中学生が「スマホのフィルタリングや制限」について親と交渉したいことは？", "SNS利用や推し活アプリ、夜の利用時間の少し延長", "全財産へのアクセス権", "車の運転許可", "海外移住の許可", 0, "成績やルールを守ることを条件に制限緩和を交渉します。"],
+    ["女子中学生が「夏休みの宿題」で最後まで残りやすい大物は？", "読書感想文・自由研究・ポスター制作", "鉛筆を削ること", "名前を書くこと", "表紙を見ること", 0, "8月後半に焦って読書感想文と戦うのは今も昔も変わりません。"],
+    ["女子中学生が「友達の誕生日プレゼント」で予算1000円〜2000円くらいで選ぶ定番は？", "ハンドクリーム・リップ・可愛い雑貨・お菓子詰め合わせ", "高級ブランドバッグ", "現金10万円", "家電製品", 0, "実用性と可愛さを兼ね備えたプチプラコスメや雑貨が鉄板！"],
+    ["女子中学生が「自分の部屋」で勉強するときに集中力を上げる工夫は？", "タイマーで時間を区切る（ポモドーロ風）や勉強用BGM", "部屋を真っ暗にする", "ベッドの中で横になって解く", "スマホを握りしめたまま寝る", 0, "YouTubeの「一緒に勉強しよう（Study With Me）」動画も人気です。"],
+    ["女子中学生が「クラス写真」を撮るときに意識する立ち位置やポーズは？", "友達と寄り添ってピースやハートポーズ・小顔ポーズ", "カメラに背中を向ける", "地面に寝そべる", "フレームから完全に外れる", 0, "頬に手を添える小顔ポーズや指ハートは定番です。"],
+    ["女子中学生が「お正月」に親戚からのお年玉で楽しみにしていることは？", "初売りセールでの洋服・コスメ購入や推しのグッズ予約", "定期預金の金利比較", "国債の購入", "金庫の購入", 0, "年末年始のショッピングは1年で一番贅沢できるタイミング！"],
+    ["女子中学生が「学校の七不思議や怖い話」を友達と話すタイミングは？", "放課後の夕暮れ時や林間学校・合宿の夜", "朝の会の直前", "給食を食べている最中", "テストの解答中", 0, "薄暗くなった校舎の雰囲気は怪談話にぴったりです。"],
+    ["女子中学生が「ハンカチ」を選ぶときに中学生らしく意識するデザインは？", "シンプルなブランドロゴや落ち着いたパステルタオル地", "幼児用キャラクターの巨大バスタオル", "雑巾", "ティッシュ1枚のみ", 0, "手触りの良いミニタオルハンカチは毎日持ち歩く必需品。"],
+    ["女子中学生が「推しグループ」のファン同士で盛り上がる会話は？", "「どのビジュが一番好き？」「神曲すぎる！」", "「事務所の株価が上がった」", "「不動産資産が増えた」", "「税制改正の影響」", 0, "MVの好きなシーンや衣装について語り合うのが至福の時間です。"],
+    ["女子中学生が「放課後の図書室」を利用する理由として多いのは？", "静かに宿題をしたり、好きな小説や漫画・雑誌を読んだりするため", "昼寝をするためだけ", "大声で歌うため", "走るため", 0, "涼しくて静かな図書室は放課後の人気スポットです。"],
+    ["女子中学生が「自分の名前やあだ名」で嬉しいと感じる呼び方は？", "仲良しの友達から親しみを込めた可愛いあだ名で呼ばれること", "出席番号だけで呼ばれること", "「おい」と呼ばれること", "名前を間違えられ続けること", 0, "特別なあだ名は仲良くなった証として喜ばれます。"],
+    ["女子中学生が「美容やファッションの情報」を一番よくチェックする媒体は？", "Instagram・TikTok・YouTubeの美容系クリエイター", "官報", "新聞の株式欄", "電話帳", 0, "同世代や少し年上のインフルエンサーのレビューがとても参考にされます。"],
+    ["女子中学生が「友達と気まずくなったとき」に仲直りのきっかけにするものは？", "「今日一緒に帰ろう？」と声をかけることやSNSのいいね", "手紙を破り捨てること", "無視し続けること", "別の学校へ行くこと", 0, "ちょっとした一言やSNSでのリアクションが仲直りの合図になります。"],
+    ["女子中学生が「冬の朝」に布団から出るのが辛い一番の理由は？", "部屋が寒くて制服に着替えるのが冷たいから", "布団が接着剤でくっついているから", "天井が低いから", "朝日が眩しすぎるから", 0, "冬場の制服への着替えは気合いが必要な瞬間です。"],
+    ["女子中学生が「スマホのカメラ」で食べ物（カフェやスイーツ）を撮るときの工夫は？", "自然光が入る席で推しのアクスタやトレカと一緒に撮る", "真っ暗なテーブルの下で撮る", "食べ終わった後の空のお皿を撮る", "ピントをわざと完全にぼかす", 0, "カフェのスイーツ×推しグッズの写真はSNS投稿の王道！"],
+    ["女子中学生が「中学生活で一番成長した！」と感じる瞬間は？", "部活や行事をやり遂げたときや後輩に頼られたとき", "身長が1mm縮んだとき", "朝起きられなくなったとき", "忘れ物が増えたとき", 0, "後輩ができる中2・中3になると頼もしさがぐっと増します。"],
+    ["女子中学生が「明日が楽しみ！」とワクワクしながら眠りにつく前日のイベントは？", "遠足・修学旅行・友達とのお出かけ・推しライブ前日", "歯医者の抜歯前日", "追試の朝", "大掃除の日", 0, "前日に持ち物やコーデを並べて準備する時間から楽しみが始まっています！"]
+  ],
+
+  // --------------------------------------------------------------------------
+  // THEME 3: 女子高校生 (100問: 2026流行・青春・バイト・カフェ・進路・JK文化)
+  // --------------------------------------------------------------------------
+  jk: [
+    ["女子高校生の放課後トレンドで、放課後にそのままテーマパークへ行くスタイルを何と呼ぶ？", "制服ディズニー・制服ユニバ", "スーツ登山", "ジャージ結婚式", "浴衣マラソン", 0, "制服にお揃いのカチューシャを合わせるテーマパークはJKの憧れ！"],
+    ["女子高校生が「アオハル（青春）写真」を撮るときに人気の場所は？", "放課後の教室・海辺・プリ機・屋上風スポット", "市役所の待機室", "高速道路のトンネル内", "地下駐車場の隅", 0, "夕暮れの教室や海辺でのエモい写真は卒業アルバムやSNSの宝物。"],
+    ["女子高校生が初めて「アルバイト」を始めるときに人気の職種ランキング上位は？", "カフェ・ファミレス・ファストフード・アパレル", "遠洋マグロ漁船", "高層ビルの窓拭き", "解体工事現場", 0, "同世代が多くオシャレな雰囲気のカフェや飲食店が大人気です。"],
+    ["2026年の女子高校生がカフェ巡りで重視するポイントは？", "韓国風インテリア・季節のスイーツ・写真映えドリンク", "立ち食い・滞在3分制限", "無言・撮影禁止・水のみ", "薄暗い倉庫", 0, "白やウッド調の韓国風カフェでスイーツを撮るのが休日の定番！"],
+    ["女子高校生が「メイク道具」をポーチに入れて持ち歩く理由で一番多いのは？", "放課後に友達と遊んだりプリクラを撮る前に直すため", "授業中に絵を描くため", "テスト用紙を塗るため", "先生に配るため", 0, "学校ではナチュラルに、放課後にリップやラメを足すのがJK流！"],
+    ["女子高校生の「スマホのギガ（データ通信量）」が月末にピンチになる主な原因は？", "通学中の動画視聴・SNS・友達とのビデオ通話", "モールス信号の送信", "FAXの受信", "電報の打電", 0, "通学電車でのショート動画や音楽ストリーミングでギガを消費しがち。"],
+    ["女子高校生が「文化祭」でクラスTシャツ（クラT）を作るときにこだわるポイントは？", "背ネーム（背中のあだ名やネタ文字）とユニフォーム風デザイン", "無地の白シャツそのまま", "全員同じ番号と名前", "紙製のシャツ", 0, "ユニフォーム風やサッカーシャツ風のクラTに個性的な背ネームを入れるのが定番！"],
+    ["女子高校生が「推し活」で遠征やライブに行くときに友達と作るアイテムは？", "名前ボード・ネームパネル・お揃い参戦服", "木製の看板", "石碑", "鉄製の盾", 0, "100均のボードやグリッターシートで作るネームボードは大人気。"],
+    ["女子高校生が「美容院」で初めて挑戦してみたいと憧れるヘアメニューは？", "レイヤーカット・顔まわりカット・透明感カラー", "丸刈り", "パンチパーマ", "アフロ", 0, "小顔に見える顔まわりレイヤーや韓国風くびれヘアが大人気！"],
+    ["女子高校生が「恋愛」で彼氏としたい憧れのデートプランは？", "制服デート・水族館・カフェ巡り・イルミネーション", "不動産物件の内見ツアー", "家電量販店の洗濯機比較", "確定申告会場デート", 0, "王道の水族館や放課後デートは高校生活ならではの輝きです。"],
+    ["女子高校生が「放課後のファミレス」でドリンクバーを頼んでやりがちなことは？", "勉強するつもりが結局3時間恋バナと推しトークになる", "ドリンクを10リットル飲む", "厨房に入って料理する", "家具を組み立てる", 0, "テスト前のファミレス勉強会はトーク8割・勉強2割になりがち！"],
+    ["女子高校生が「スクバ（スクールバッグ）」に付けるキーホルダーのトレンドは？", "ご当地キティ・サンリオ・ディズニー・お揃いマスコット", "重い南京錠20個", "車のタイヤ", "フライパン", 0, "思い出が増えるたびにキーホルダーが増えていくのがJKのスクバ！"],
+    ["女子高校生が「進路選択（大学・専門・就職）」でオープンキャンパスに行く楽しみは？", "キャンパスの雰囲気体験・学食ランチ・ノベルティ", "教授の論文執筆代行", "校舎のペンキ塗り", "入学試験の採点", 0, "綺麗な大学キャンパスやオシャレな学食を見るとモチベーションが上がります。"],
+    ["女子高校生が「修学旅行」でキャリーケース（スーツケース）に詰める必須アイテムは？", "ヘアアイロン・メイクポーチ・お揃いパジャマ・予備の圧縮袋", "ダンベル20kg", "炊飯器", "観葉植物", 0, "お土産をたくさん買うために片面を空けておくのが旅行上手のコツ！"],
+    ["女子高校生が「カラオケ」で友達と動画を撮りながら歌う定番の楽しみ方は？", "ペンライトを振ってライブ会場風に盛り上がる", "全員目をつぶって歌う", "マイクを床に置く", "1曲も歌わず帰る", 0, "推し曲のMV映像をバックにペンライトを振って盛り上がります。"],
+    ["女子高校生が「夏休み」にバイト代を貯めて買いたいものの定番は？", "デパコス・ブランド財布・推しライブ遠征費・新作服", "業務用冷蔵庫", "軽トラック", "耕運機", 0, "初めてのバイト代でデパコスや憧れのブランド小物を買うのが夢！"],
+    ["女子高校生が「SNS（Instagram）」のハイライト機能にまとめる思い出は？", "体育祭・文化祭・修学旅行・カフェ・推し活", "毎日のレシート", "通学路の電柱", "テストの赤点答案", 0, "プロフィールのハイライトは高校生活のアルバム代わりです。"],
+    ["女子高校生が「朝ギリギリに起きた日」に最低限これだけはやって登校する項目は？", "前髪セットと日焼け止め・リップ", "フルコース料理作り", "部屋の模様替え", "洗車", 0, "遅刻寸前でも前髪と日焼け止めだけは死守します！"],
+    ["女子高校生が「友達の誕生日」にロッカーや机を使ってやるサプライズは？", "お菓子ロッカー（お菓子の詰め合わせや風船で飾り付け）", "ロッカーをコンクリートで埋める", "机を校庭に運ぶ", "教科書を全部隠す", 0, "ロッカーを開けた瞬間にお菓子やメッセージが溢れるサプライズは大人気！"],
+    ["女子高校生が「スマホの写真編集」でよく使う加工のトレンドは？", "チェキ風・フィルムカメラ風・レトロ感フィルター", "白黒の監視カメラ風", "砂嵐ノイズのみ", "モザイク100%", 0, "あえて少し粒子感のあるフィルム風やチェキ風加工がエモいと人気。"],
+    ["女子高校生が「バレンタイン」で高校生の今だからこそ作る気合いスイーツは？", "生チョコタルト・アイシングクッキー・カヌレ風", "生の小麦粉そのまま", "塩おにぎり1個", "冷めた味噌汁", 0, "ラッピング箱やリボンまでこだわって手作りする女子が多いです。"],
+    ["女子高校生が「体育祭」でメガホンをデコレーションするときに使う材料は？", "造花・リボン・パールシール・推しの名前文字", "有刺鉄線", "錆びた釘", "コンクリート", 0, "100均のメガホンを可愛くデコって写真を撮るのが体育祭の定番！"],
+    ["女子高校生が「冬の制服コーデ」で重視する防寒と可愛さの両立アイテムは？", "オーバーサイズカーディガン・マフラー・タイツ", "半袖半ズボン", "毛布を全身に巻く", "段ボール箱を着る", 0, "ダボッとしたカーディガンから袖が少し出るシルエットが人気です。"],
+    ["女子高校生が「放課後の駅ビル・ショッピングモール」で必ずチェックするお店は？", "コスメショップ・アパレルブランド・雑貨店・プリ機", "重機販売店", "仏具専門店", "畳屋", 0, "新作リップのテスターを試したりトレンド服を見るのが楽しみ！"],
+    ["女子高校生が「恋愛トーク」で友達と盛り上がる「理想のシチュエーション」は？", "放課後の帰り道・相合傘・文化祭の買い出し", "満員電車で足を踏まれる", "テスト中に消しゴムを落とす", "掃除当番でゴミ捨て", 0, "文化祭の準備や買い出しでの急接近は青春の王道イベント！"],
+    ["女子高校生が「お弁当」を友達と食べるときに盛り上がる話題は？", "昨日のテレビ・SNS・恋愛・バイトの愚痴", "日本のGDP成長率", "金利政策の動向", "企業の貸借対照表", 0, "昼休みのお弁当タイムは一番リラックスして笑える時間です。"],
+    ["女子高校生が「通学電車・バス」の中で過ごしている時間の使い方は？", "音楽を聴く・単語帳を見る・SNSチェック・仮眠", "大声で演説する", "縄跳びをする", "料理をする", 0, "受験生になると通学時間が英単語暗記のゴールデンタイムになります。"],
+    ["女子高校生が「卒業式（高3）」の日にやりたがる思い出作りの定番は？", "黒板アートの前で記念撮影・制服交換・花束や寄せ書き", "制服をその場で燃やす", "誰とも話さず即帰宅", "校門を封鎖する", 0, "3年間の思い出が詰まった教室での撮影会は涙と笑顔で溢れます。"],
+    ["女子高校生が「スキンケア」で意識し始めるステップは？", "クレンジング・洗顔・化粧水・乳液・日焼け止め徹底", "石鹸で顔をゴシゴシ擦るだけ", "何も塗らない", "油を塗る", 0, "メイクをする機会が増えるため、落とすケアと保湿を重視します。"],
+    ["女子高校生が「カフェで勉強」するときに頼みがちなドリンクは？", "キャラメルマキアート・抹茶ラテ・フラペチーノ系", "お湯のみ", "エスプレッソ10杯", "醤油", 0, "甘めのラテ系ドリンクはおしゃれ気分と糖分補給を両立できます。"],
+    ["女子高校生が「友達とお揃い」で買うプチプラアイテムとして人気なのは？", "ヘアクリップ・スマホストラップ・リング・Tシャツ", "自動車", "別荘", "大型犬", 0, "気軽に買えて写真にも映えるお揃い小物は友情の証！"],
+    ["女子高校生が「バイトの面接」で緊張しながら練習する質問は？", "志望動機・シフトに入れる曜日・テスト期間の休み希望", "会社の買収提案", "社長への昇進時期", "役員報酬の交渉", 0, "「テスト期間はシフトを減らせますか？」は高校生バイトの重要ポイント。"],
+    ["女子高校生が「夏祭り・花火大会」で浴衣を着るときに用意するヘアアクセは？", "水引・金箔・ドライフラワー風の髪飾り", "工事用ヘルメット", "新聞紙の兜", "サンタ帽", 0, "トレンド感のある水引やドライフラワー飾りは浴衣にぴったり！"],
+    ["女子高校生が「スマホのカメラ」で撮る流行りのポーズは？", "ギャルピース・ルダハート・ほっぺハート・0.5倍上からポーズ", "気をつけ直立不動", "土下座", "ブリッジ", 0, "指で作るハートやピースのバリエーションが豊富です。"],
+    ["女子高校生が「テスト期間中」にSNSでやりがちな行動は？", "「勉強垢」を作ったり、ノートやペンを並べてストーリーに載せる", "スマホを川に投げる", "24時間生配信で寝る", "友達全員をブロックする", 0, "可愛い文具やカフェ勉の写真を載せてモチベーションを高めます。"],
+    ["女子高校生が「推し活」で遠征（他県のライブ等）に行くときの楽しみは？", "ご当地グルメ・会場前での写真撮影・ホテルでの感想会", "会場に入らず帰る", "現地の図書館で読書のみ", "無言で即帰宅", 0, "ライブ本編だけでなく友達との旅行気分も最高に楽しい時間です。"],
+    ["女子高校生が「自分の部屋のクローゼット」で悩みちなことは？", "「着ていく服がない！」（服はあるのにコーデが決まらない）", "服が1着もない", "鎧しかない", "全部同じ作業着", 0, "休日の朝に服を引っ張り出してファッションショー状態になるのはあるある！"],
+    ["女子高校生が「学校帰りのコンビニ」で冬に買いたくなる温かいものは？", "肉まん・ピザまん・ホットドリンク・おでん", "かき氷大盛り", "氷水", "冷やし中華", 0, "寒い日の帰り道に友達と食べる中華まんは格別の美味しさ！"],
+    ["女子高校生が「学園祭・文化祭」の後夜祭で一番盛り上がる瞬間は？", "ダンスやバンドのステージ発表と照明・ペンライトの演出", "全員で草むしり", "体育館の床磨き", "無言の解散式", 0, "有志ステージのダンスやバンド演奏はアイドルライブ並みの熱気！"],
+    ["女子高校生が「香水・ボディミスト」を選ぶときに好まれる香りは？", "石鹸（サボン）・フローラル・フルーティー系の清潔感ある香り", "ニンニクの香り", "ガソリンの香り", "焚き火の煙", 0, "学校でも浮かない優しい石鹸やフローラルの香りが人気です。"],
+    ["女子高校生が「受験生（高3）」になって変化する日常の習慣は？", "放課後に自習室や塾へ直行し、SNSアプリを一時削除・制限する", "毎日遊園地に通う", "睡眠時間18時間", "ゲーム大会主催", 0, "志望校合格のためにスマホ制限アプリを入れる受験生も多いです。"],
+    ["女子高校生が「放課後のカラオケ」でフリータイムを利用する理由は？", "歌うだけでなくおしゃべりや動画撮影、宿題までできるから", "部屋で寝るためだけ", "マイクの修理をするため", "掃除をするため", 0, "フリータイムは個室感覚でゆっくり過ごせる神コスパ空間！"],
+    ["女子高校生が「プリクラの落書き」でよく書く定番文字は？", "日付・年齢（JK1/2/3）・LOVE・BFF・ネタフレーズ", "円周率100桁", "憲法前文", "買い物リスト", 0, "「JKブランド」「LJK（ラストJK）」などの文字は定番中の定番！"],
+    ["女子高校生が「彼氏や好きな人」とSNSで繋がったときにチェックすることは？", "過去の投稿・フォロー欄・ストーリーズの反応", "確定申告履歴", "住民税の納税額", "クレジットスコア", 0, "自分のストーリーに「いいね」がつくと一日中ハッピーになります。"],
+    ["女子高校生が「コスメ」で「デパコス（デパートコスメ）」に憧れる理由は？", "パッケージの高級感と持っているだけでテンションが上がるから", "1個10kgあって筋トレになるから", "食べられるから", "文房具として使えるから", 0, "誕生日プレゼントやバイト代のご褒美にデパコスを買うのが夢！"],
+    ["女子高校生が「体育の球技大会」で本気になる競技は？", "ドッジボール・バレーボール・バスケットボール", "ゲートボール", "カーリング（氷なし）", "ゴルフ", 0, "クラス対抗の球技大会は応援もプレーも大盛り上がり！"],
+    ["女子高校生が「雨の日の放課後」に予定が変更になりがちな理由は？", "湿気で髪が崩れるので外歩きをやめて室内カフェやカラオケにする", "雨に打たれて修行するから", "傘が禁止だから", "電車が全部運休するから", 0, "天気によって遊び場を柔軟に変えるのがスマートなJK！"],
+    ["女子高校生が「自分のスマホの充電ケーブル」を持ち歩くときに便利なアイテムは？", "コード一体型のコンパクトモバイルバッテリー", "発電機", "自動車用バッテリー", "延長コード50m", 0, "バッグの中で絡まらない直挿しタイプの小型バッテリーが大人気。"],
+    ["女子高校生が「高校に入学して一番驚いた」中学との違いは？", "行動範囲が一気に広がり、放課後の自由度が高くなったこと", "校舎が宇宙にあること", "授業が全部英語の歌であること", "給食が1日5回あること", 0, "電車通学や繁華街へのアクセスなど世界が一気に広がります。"],
+    ["女子高校生が「友達の恋愛相談」に乗るときに一番大切なスタンスは？", "まず共感して話を聞き、全力で背中を押すこと", "論破して泣かせること", "相手の親に電話すること", "SNSで暴露すること", 0, "「わかる！」「絶対いけるよ！」と共感してくれる友達は最高の存在。"],
+    ["女子高校生が「韓国グルメ」で友達と食べに行きたがる人気メニューは？", "チーズタッカルビ・サムギョプサル・クロッフル・タンフル", "冷や麦のみ", "おかゆのみ", "生野菜のみ", 0, "見た目も楽しくシェアしやすい韓国料理・スイーツは定番人気！"],
+    ["女子高校生が「文化祭のフォトスポット」を教室に作るときの定番アイテムは？", "風船・ネオン風ライト・黒板アート・鏡", "事務机とパイプ椅子のみ", "段ボール山積み", "掃除用具入れ", 0, "映えるフォトスポットを作ると他クラスからも行列ができます。"],
+    ["女子高校生が「通学リュック」と「スクバ（合皮・ナイロン）」を使い分ける基準は？", "荷物が多い日はリュック、おしゃれしたい日や行事の日はスクバ", "季節で1年ごとに捨てる", "毎日2個同時に背負う", "中身を空にして持つ", 0, "TPOに合わせてリュックとスクバを使い分ける女子が増えています。"],
+    ["女子高校生が「スマホのカメラアプリ」で無加工風に見せつつ盛る工夫は？", "肌補正だけ少し入れて自然な光と色味に調整する", "顔を完全に別の動物に変える", "画面を真っ赤にする", "文字で顔を隠す", 0, "過度な加工より「ナチュラルに盛る」のが2026年の主流！"],
+    ["女子高校生が「バイト先」で仲良くなるきっかけとして多いのは？", "同じ時間帯のシフトで助け合ったり賄いを食べたりすること", "無言で目を合わせないこと", "シフトを勝手に消すこと", "レジを壊すこと", 0, "学校以外の「バイト仲間」ができるのは高校生活の大きな魅力です。"],
+    ["女子高校生が「夏休みの宿題」を効率よく終わらせるためにやる作戦は？", "7月中に友達と集まって一気に片付ける", "9月1日にタイムマシンを作る", "宿題を忘れたふりをする", "犬に食べさせる", 0, "前半に終わらせて後半を遊びとバイトに使うのが理想の計画！"],
+    ["女子高校生が「ピアス」を開けるタイミングとして一番多いのは？", "高校卒業後（または校則OKの学校・休み期間）", "幼稚園の入園式", "テストの最中", "水泳の授業中", 0, "卒業式が終わった直後にピアスを開けに行くのは定番の通過儀礼！"],
+    ["女子高校生が「お気に入りのカフェ」を見つけたときにやりがちなことは？", "位置情報や店名をタグ付けしてインスタのストーリーに載せる", "誰にも教えず秘密の地下室にする", "店の看板を外す", "メニューを全部暗記する", 0, "おしゃれなカフェ情報は友達同士で共有し合います。"],
+    ["女子高校生が「冬休み・年末年始」に友達と集まるイベントは？", "クリスマスパーティー・初詣・お年玉ショッピング", "田植え", "海水浴", "運動会", 0, "サンタコスやパーティーフードを持ち寄るクリパは大人気！"],
+    ["女子高校生が「受験勉強の息抜き」に10分だけやるリフレッシュ方法は？", "好きな音楽を1曲聴く・ストレッチ・お菓子を1つ食べる", "徹夜でゲームをする", "10km走る", "映画を3本観る", 0, "時間を決めた短いリフレッシュが集中力維持の鍵です。"],
+    ["女子高校生が「卒業アルバム」の個人写真撮影の日に気合いを入れるポイントは？", "前髪・ツヤ髪・制服の着こなし・自然な笑顔", "変顔一択", "マスクとサングラス着用", "後ろ向き撮影", 0, "一生残る卒業アルバムの写真はベストコンディションで臨みます！"],
+    ["女子高校生が「推し活」でアクリルスタンド（アクスタ）を撮影するときのコツは？", "背景を少しぼかしてカフェのスイーツや風景と一緒に撮る", "アクスタを地面に埋める", "裏向きに置く", "暗闇でフラッシュなし", 0, "「アクスタとお出かけ」写真は推し活の定番スタイルです。"],
+    ["女子高校生が「クラス替え」で新しい友達を作るときに最初に聞く質問は？", "「出身中学どこ？」「部活何入ってる？」「誰推し？」", "「年収いくら？」", "「血液検査の結果は？」", "「好きな法律は？」", 0, "共通点を見つける質問から一気に会話が広がります！"],
+    ["女子高校生が「放課後のファストフード」で期間限定メニューが出るとやりがちなことは？", "発売日に友達を誘ってレビューしに行く", "発売終了まで待つ", "ポスターだけ食べる", "店員さんに作り方を教える", 0, "月見バーガーや三角チョコパイなどの季節限定商品は一大イベント！"],
+    ["女子高校生が「ヘアオイル・ヘアミルク」を使う主な理由は？", "アイロンの熱から髪を守り、ツヤとまとまりを出すため", "髪を固めてヘルメットにするため", "髪を緑色にするため", "髪を洗わないため", 0, "サラサラのツヤ髪はJKの美意識の象徴です。"],
+    ["女子高校生が「体育祭の競技」で一番盛り上がる花形種目は？", "クラス対抗リレー・綱引き・玉入れ", "100km競歩", "ひとり縄跳び", "黙想大会", 0, "最後のクラス対抗リレーは声援が最高潮に達します！"],
+    ["女子高校生が「SNSのDM」で返信を少し遅らせる（駆け引きする）ことがある理由は？", "即レスしすぎて必死だと思われたくないから", "スマホが爆発したから", "文字が読めないから", "1年後に返すルールだから", 0, "恋の駆け引きで返信タイミングを考えるのも青春のひとコマ！"],
+    ["女子高校生が「雑貨屋」でつい買ってしまう実用的な可愛いアイテムは？", "折りたたみエコバッグ・マイボトル・ポーチ・ヘアクリップ", "消火器", "業務用ポリバケツ", "コンクリートブロック", 0, "バッグの中身が可愛いと毎日が少し楽しくなります。"],
+    ["女子高校生が「高校生活3年間」を振り返って一番思い出に残ることランキング上位は？", "文化祭・修学旅行・友達との何気ない放課後", "定期テストのマークシート塗り", "避難訓練の整列", "健康診断の視力検査", 0, "特別な行事だけでなく、毎日の放課後の笑いが一番の宝物です。"],
+    ["女子高校生が「自分のパーソナルカラー（イエベ・ブルベ）」を知るメリットは？", "自分に似合うリップやアイシャドウ、服の色が選びやすくなる", "テストの点数が2倍になる", "足が速くなる", "背が20cm伸びる", 0, "イエベ春・ブルベ夏などの診断結果はコスメ選びの強い味方！"],
+    ["女子高校生が「友達とテーマパーク」に行く前にやる事前準備は？", "お揃いコーデの相談・カチューシャ選び・乗りたいアトラクション計画", "事前情報ゼロで閉園時間に行く", "制服を家に忘れる", "靴を履かずに行く", 0, "前日までのコーデ相談からすでにテーマパークは始まっています！"],
+    ["女子高校生が「学校の先生」の中で生徒から人気が集まりやすいタイプは？", "話が面白くて生徒の気持ちに寄り添ってくれる先生", "一度も笑わない先生", "授業を全部自習にするだけの先生", "名前を一切覚えない先生", 0, "親しみやすくて相談しやすい先生は卒業後も慕われます。"],
+    ["女子高校生が「放課後の映画館」で映画を観るときに買いがちなセットは？", "ポップコーン（キャラメル＆塩ハーフ）とドリンク", "生米1kg", "スイカ丸ごと1玉", "鍋セット", 0, "映画前のポップコーン購入はテンションが上がる定番コース！"],
+    ["女子高校生が「スマホのロック画面」に設定すると気分が上がる画像は？", "推しのベストショット・彼氏や親友との写真・綺麗な空", "エラーコード一覧", "白紙のエクセル表", "自分の変顔アップ", 0, "通知を見るたびに幸せになれる画像が選ばれます。"],
+    ["女子高校生が「冬のマフラーの巻き方」で人気が高いスタイルは？", "ボリュームが出るミラノ巻きやワンループ巻き", "顔全体を完全に覆うミイラ巻き", "腰に巻く", "頭の上に載せる", 0, "小顔効果もあるボリューム巻きが冬の制服コーデに大人気！"],
+    ["女子高校生が「文房具」でルーズリーフを使うメリットとして感じていることは？", "教科ごとに整理しやすく、後から順番を入れ替えられること", "紙飛行機が折りやすいこと", "燃やしやすいこと", "重さが10kgあること", 0, "バインダーにまとめて綺麗にノート作りをする女子が多いです。"],
+    ["女子高校生が「カフェで写真を撮るとき」にテーブルの上に一緒に並べるものは？", "ドリンク・スイーツ・スマホ・サングラスや推しグッズ", "教科書10冊と辞書", "運動靴", "ゴミ袋", 0, "小物をバランス良く配置して「テーブルフォト」を撮るのが定番です。"],
+    ["女子高校生が「高校の制服」を卒業後も大切にする理由は？", "青春時代の思い出が詰まった特別な衣装だから", "防弾チョッキになるから", "将来売るため", "作業着にするため", 0, "卒業後に制服ディズニーなどで着ることもあります。"],
+    ["女子高校生が「お小遣いやバイト代」を節約するときに実践する工夫は？", "水筒を持参したり、プチプラコスメやセールを活用したりする", "1日1食も食べない", "徒歩50km通学する", "電気を一切使わない", 0, "賢くやりくりして推し活や旅行にお金を回すしっかり者も多いです。"],
+    ["女子高校生が「夜のビデオ通話（寝落ち通話）」を友達や恋人とするときの雰囲気は？", "お互い別のことをしながらラジオ感覚でリラックスして話す", "1秒も黙らず絶叫し続ける", "画面をずっと睨み合う", "ビジネスプレゼンをする", 0, "繋がっている安心感の中で作業や雑談をするのが人気です。"],
+    ["女子高校生が「新しいコスメ」を買う前に必ずチェックする情報源は？", "SNSのリアルな口コミ・スウォッチ画像・ランキングサイト", "新聞の訃報欄", "電話帳", "天気予報", 0, "実際の肌に乗せた色味（スウォッチ）を見て失敗を防ぎます。"],
+    ["女子高校生が「体育のダンス創作授業」で盛り上がるポイントは？", "流行りの曲を選んでグループでフォーメーションを考えること", "全員で10分間直立すること", "曲をかけずに踊ること", "床に座り込むこと", 0, "K-POPやJ-POPの振り付けを取り入れて発表するのが人気です。"],
+    ["女子高校生が「夏の通学」で汗対策・身だしなみとして持ち歩くものは？", "ハンディファン・冷感シート・前髪キープアイテム・制汗剤", "カイロ20個", "厚手の毛布", "湯たんぽ", 0, "真夏の登校でも涼しげに見せるためのアイテムが揃っています。"],
+    ["女子高校生が「友達の誕生日」に贈るギフトで外さない定番ブランド・ショップは？", "SABON・JILL STUART・SHIRO・LOFTのギフトセット", "農協の肥料セット", "ホームセンターのセメント", "オフィス用品カタログ", 0, "香りの良いボディケアや可愛いパッケージのコスメは鉄板ギフト！"],
+    ["女子高校生が「放課後にプリクラを撮った後」にすぐやることは？", "ダウンロードした画像をLINEアルバムやインスタで共有する", "画像を即座に完全削除する", "印刷したシールを破り捨てる", "誰にも見せず金庫に入れる", 0, "共有してプロフィール画像にしたりストーリーに載せたりします。"],
+    ["女子高校生が「文化祭の模擬店」で食品を扱うときに盛り上がるメニューは？", "タピオカ・チュロス・ベビーカステラ・焼きそば", "生魚", "生のじゃがいも", "氷だけ", 0, "食べ歩きしやすくて写真映えするチュロスやベビーカステラは大人気！"],
+    ["女子高校生が「受験の合格発表」の日に味わう感情は？", "今までの努力が報われた最高の達成感と涙", "無感情", "悔しさだけ", "眠気だけ", 0, "友達や家族と抱き合って喜ぶ瞬間は人生の大きな節目です。"],
+    ["女子高校生が「放課後の本屋・雑貨屋」でつい手に取ってしまうものは？", "可愛い付箋・ステッカー・推し活グッズ・占い本", "法律六法", "建築基準法解説", "医学辞典", 0, "ちょっとした雑貨を見るだけでも放課後の楽しい気分転換になります。"],
+    ["女子高校生が「ヘアカラー」を初めてするとき（卒業後など）に人気の色は？", "ミルクティーベージュ・ピンクブラウン・オリーブグレージュ", "蛍光グリーン一色", "真っ青なネオンブルー", "白髪染めブラック", 0, "肌が明るく見える透明感ベージュやブラウン系が大人気です。"],
+    ["女子高校生が「友達との思い出」を形に残すために作るものの定番は？", "アルバム・色紙・動画・お揃いのキーホルダー", "石碑", "銅像", "論文", 0, "手書きのメッセージやチェキを貼ったアルバムは宝物になります。"],
+    ["女子高校生が「朝の支度」で音楽や動画流しながら準備する理由は？", "気分を上げてテンポよく支度を進めるため", "耳を塞ぐため", "寝直すため", "時計を止めるため", 0, "好きな曲プレイリストを聴きながらの準備は朝のルーティン！"],
+    ["女子高校生が「高校生活で大切にしておきたい」と思うことは？", "今しかできない制服での思い出と友達との時間", "毎日家に閉じこもること", "誰とも口をきかないこと", "思い出を作らないこと", 0, "「今この瞬間（LJKなど）」を全力で楽しむ姿勢がJKの魅力です！"],
+    ["女子高校生が「カフェで季節限定メニュー」を頼むときの楽しみ方は？", "「春は桜・夏は桃・秋は芋栗・冬はいちご」と季節感を楽しむ", "真冬に氷だけ食べる", "真夏に鍋を食べる", "季節を無視する", 0, "季節ごとのスイーツ巡りは1年を通した楽しみです。"],
+    ["女子高校生が「スマホの写真フォルダ」でお気に入り（ハート）に入れる写真は？", "何度見返しても笑顔になれるベストショット", "間違えて撮った地面", "メモ代わりの時刻表", "スクリーンショットのエラー", 0, "お気に入りフォルダは見るだけで元気が出る宝箱です。"],
+    ["女子高校生が「友達とランチ」に行くときに選びやすいコスパの良いお店は？", "サイゼリヤ・マクドナルド・カフェ・食べ放題", "1人5万円の高級料亭", "会員制バー", "社員食堂", 0, "お小遣いやバイト代で気兼ねなく楽しめるお店が定番！"],
+    ["女子高校生が「ヘアアレンジ」で大人っぽく見せたいときに選ぶ髪型は？", "ハーフアップ・シニヨン（低めお団子）・ワンカール巻き", "赤ちゃん風の二つ結び", "モヒカン", "オールバック", 0, "落ち着いた低めアレンジやゆる巻きは大人っぽい雰囲気になります。"],
+    ["女子高校生が「試験が終わった開放感（テスト最終日）」にやりたいことは？", "友達とカラオケ・プリクラ・買い物に行って思いっきり遊ぶ！", "そのまま帰宅して模擬試験を解く", "学校に泊まり込む", "教科書を丸暗記する", 0, "テスト最終日の放課後は学校中が解放感でいっぱいになります！"],
+    ["女子高校生が「香水」をつけるときにマナーとして気をつけているポイントは？", "手首や足首などにワンプッシュだけ控えめにつける", "頭から1本丸ごと浴びる", "教室中にスプレーを撒く", "食べ物の近くに吹きかける", 0, "ほのかに香る程度につけるのがスマートなマナーです。"],
+    ["女子高校生が「卒業旅行」の行き先として憧れる人気スポットは？", "東京ディズニーリゾート・USJ・韓国・京都・沖縄", "南極昭和基地", "サハラ砂漠横断", "深海探査", 0, "友達同士で行く卒業旅行は高校生活の集大成！"],
+    ["女子高校生が「青春」という言葉から真っ先に思い浮かべる風景は？", "放課後の教室・夕焼けの帰り道・仲間と笑い合った瞬間", "税務署の窓口", "満員電車の遅延", "深夜のオフィス", 0, "何気ない日常の1ページこそが最高の青春です！"]
+  ],
+
+  // --------------------------------------------------------------------------
+  // THEME 4: AI全般 (100問: 2026最新AIトレンド・LLM・エージェント・活用・倫理)
+  // --------------------------------------------------------------------------
+  ai: [
+    ["2025〜2026年にかけて急速に普及した、回答前に内部で段階的な思考プロセス（Chain-of-Thought）を行うAIモデルの総称は？", "推論モデル（Reasoning Models）", "計算機モデル", "単純反射モデル", "固定辞書モデル", 0, "OpenAI oシリーズやDeepSeek-R1、Gemini Thinkingなど推論特化モデルが主流に！"],
+    ["ユーザーの指示に基づき、ブラウザ操作・コード実行・外部ツール連携などを自律的にこなすAIシステムを何と呼ぶ？", "AIエージェント（AI Agent）", "スクリーンセーバー", "デフラグツール", "BIOS画面", 0, "単なるチャット応答を超え、タスクを自律実行するAIエージェントが2026年の主役です。"],
+    ["Anthropicが提唱し、LLMと外部データソース・ツールを標準化された方法で接続するためのオープンプロトコルは？", "MCP（Model Context Protocol）", "HTTP/0.9", "FTP", "POP3", 0, "MCPの普及により、AIアシスタントが各種ツールやデータベースへ安全に接続しやすくなりました。"],
+    ["LLMが学習データにない最新情報や社内文書を参照して回答精度を高める手法「RAG」の正式名称は？", "Retrieval-Augmented Generation", "Random Access Game", "Rapid Audio Generator", "Real Animation Graphics", 0, "検索拡張生成（RAG）はハルシネーション抑制と最新知識反映の重要技術です。"],
+    ["AIが事実に基づかない誤った情報をもっともらしく生成してしまう現象を何と呼ぶ？", "ハルシネーション（幻覚）", "オーバークロック", "デッドロック", "フラグメンテーション", 0, "AI利用時はファクトチェック（一次情報確認）が不可欠です。"],
+    ["テキストだけでなく、画像・音声・動画・コードを単一モデルで統合的に理解・生成できるAIの特性は？", "マルチモーダル（Multimodal）", "モノクローム", "モノラル", "シングルタスク", 0, "GeminiやGPTなどの最新世代はネイティブなマルチモーダル性能を備えています。"],
+    ["LLMが一度に処理できる入力・出力テキスト（トークン）の最大容量を指す用語は？", "コンテキストウィンドウ（Context Window）", "タスクバー", "スワップ領域", "レジスタ", 0, "数百万トークン規模の長大コンテキストにより、本丸ごとや大規模コードベースの解析が可能に。"],
+    ["自然言語で指示を出し、AIと対話しながらアプリやWebサイトを高速に開発するスタイルを指すトレンド用語は？", "バイブコーディング（Vibe Coding）", "パンチカード入力", "アセンブリ手書き", "スパゲッティ配線", 0, "プログラミングの意図を自然言語で伝えてAIに実装させる開発スタイルが広まりました。"],
+    ["クラウドサーバーではなく、手元のPCやスマートフォン上で直接AIモデルを動かす仕組みを何と呼ぶ？", "ローカルLLM / エッジAI", "メインフレーム端末", "ファクシミリ通信", "テレックス", 0, "プライバシー保護やオフライン動作、コスト削減の面から注目されています。"],
+    ["モデルの重みデータの数値精度（例：16bitから4bitなど）を下げてメモリ消費量を減らす軽量化技術は？", "量子化（Quantization）", "暗号化", "圧縮解凍", "初期化", 0, "GGUFやAWQなどの量子化技術により、家庭用GPUでも高性能LLMが動作します。"],
+    ["AIへの指示文（プロンプト）で、いくつか回答例を示してから本題を解かせるテクニックは？", "Few-shotプロンプティング", "Zero-gravityプロンプティング", "No-inputプロンプティング", "Randomプロンプティング", 0, "具体例を2〜3個示すだけで出力フォーマットや精度が劇的に安定します。"],
+    ["大規模なベースモデルに対し、特定分野のデータで追加学習を行い性能を特化させる手法は？", "ファインチューニング（Fine-tuning）", "フォーマット", "デフラグ", "リブート", 0, "医療・法務・社内特化などの専門タスクに合わせる際に用いられます。"],
+    ["モデルの全パラメータを更新せず、小さな追加行列だけを学習させて効率的に適応させる手法は？", "LoRA（Low-Rank Adaptation）", "RAID", "ROM", "BIOS", 0, "計算コストを大幅に抑えつつ特定のスタイルや知識を追加できる定番技術です。"],
+    ["複数の専門家サブネットワーク（Expert）を用意し、入力に応じて一部だけを活性化させる効率的なモデル構造は？", "MoE（Mixture of Experts）", "FIFO", "LIFO", "CRUD", 0, "総パラメータ数を増やしつつ推論時の計算コストを抑えられるため最新LLMで広く採用されています。"],
+    ["人間のフィードバック（好みや評価）を用いてAIの応答をより自然で安全に調整する強化学習手法は？", "RLHF", "HTML", "CSS", "SQL", 0, "Reinforcement Learning from Human Feedbackの略で、対話品質向上の要です。"],
+    ["テキストを数値ベクトルに変換し、意味の近さを計算できるようにする技術・表現を何と呼ぶ？", "エンベディング（Embedding / 埋め込み表現）", "ビットマップ", "ラスター化", "サンプリングレート", 0, "ベクトル検索やRAGの類似度検索の基盤となる技術です。"],
+    ["AIが生成した文章や画像に対し、AIによる生成物であることを識別可能にする電子透かし技術は？", "SynthID / ウォーターマーク", "QRコード", "バーコード", "JANコード", 0, "GoogleのSynthIDなど、見た目や音質を損なわずAI生成を検知する技術が進んでいます。"],
+    ["音声認識（STT）・LLM推論・音声合成（TTS）を統合し、人間とほぼ遅延なく会話できるAI機能は？", "リアルタイム音声対話（Live / Voice Mode）", "モールス電信", "ポケベル通知", "留守番電話", 0, "感情表現や相槌まで含めた自然なリアルタイム音声会話が可能になっています。"],
+    ["AIモデルがテキストを処理する際の最小単位（単語や文字の断片）を何と呼ぶ？", "トークン（Token）", "ピクセル", "ヘルツ", "ルーメン", 0, "APIの課金やコンテキスト長の計算は基本的にトークン数で行われます。"],
+    ["LLMの生成パラメータ「Temperature（温度）」を高く設定すると、出力はどう変化する？", "多様で創造的（ランダム性が高い）になる", "完全に同じ文章しか出なくなる", "処理速度が100倍になる", "文字が全部大文字になる", 0, "正確な事実回答には低め、アイデア出しや創作には高めのTemperatureが向いています。"],
+    ["Transformerアーキテクチャの中核をなす、文中の単語同士の関連度合いを計算する仕組みは？", "Self-Attention（自己注意機構）", "バブルソート", "二分探索", "ハッシュテーブル", 0, "2017年の論文「Attention Is All You Need」から現代の生成AI革命が始まりました。"],
+    ["AIの利用において、悪意ある指示文を入力して安全制限（ガードレール）を突破しようとする攻撃手法は？", "プロンプトインジェクション / ジェイルブレイク", "SQLインジェクション", "DDoS攻撃", "フィッシング詐欺", 0, "外部Webページに隠された悪意ある指示をAIに読み込ませる間接的攻撃も対策が重要です。"],
+    ["企業が自社の機密情報をAIに入力する際、学習データに再利用されないようにするための主な対策は？", "法人向けプラン（Zero Data Retention等）やオプトアウト設定・ローカル環境利用", "無料版で公開設定のまま使う", "SNSに全データを投稿する", "パスワードをプロンプトに書く", 0, "APIや法人向け契約では入力データがモデル学習に使われない設定が一般的です。"],
+    ["AIの学習データや生成物に関する著作権議論で、日本の著作権法30条の4が原則として認めている行為は？", "情報解析（AI学習）のための著作物の利用（著作権者の利益を不当に害する場合を除く）", "他人の作品をそのまま販売すること", "海賊版サイトの運営", "著作権表示の偽造", 0, "学習段階（情報解析）と生成・公開段階（類似性・依拠性）は分けて判断されます。"],
+    ["ディープフェイク動画や偽音声によるなりすまし被害を防ぐために重要なリテラシーは？", "公式発表や複数メディアでの裏付け確認（一次情報の検証）", "SNSの衝撃動画を即リポストする", "音声だけで送金する", "画像1枚で全て信じる", 0, "リアルな音声・映像が作れる時代だからこそ、情報源の確認が不可欠です。"],
+    ["プログラミング支援AI（GitHub CopilotやCursorなど）が得意とする作業は？", "コード補完・バグ修正・テスト生成・リファクタリング", "PCの物理的な清掃", "LANケーブルの自作", "モニターの修理", 0, "開発者の生産性を大幅に引き上げる定番のAI活用領域です。"],
+    ["動画生成AI（Sora、Veo、Kling、Runwayなど）の2026年時点での大きな進化ポイントは？", "物理法則の一貫性向上・長尺化・音声同時生成", "1秒間に1コマの白黒紙芝居のみ", "文字しか出力できない", "必ず逆再生になる", 0, "映像と同時に効果音やセリフまで生成できるモデルが登場しています。"],
+    ["音楽生成AI（Suno、Udioなど）を使う際にユーザーが入力する主な要素は？", "歌詞・ジャンル・ムード・楽器構成のプロンプト", "五線譜の手書きスキャン必須", "楽器の演奏録音必須", "楽典の筆記試験合格", 0, "プロンプトだけでボーカル入りのフル楽曲を数分で生成できます。"],
+    ["AIが自律的にWeb検索を行い、数十〜数百のソースを調査して構造化されたレポートを作成する機能は？", "Deep Research（ディープリサーチ）", "ディスククリーンアップ", "スクリーンショット", "ペイントツール", 0, "調査・比較・出典付きレポート作成を自動化する強力な機能です。"],
+    ["「AGI」とは何の略称？", "Artificial General Intelligence（汎用人工知能）", "Auto Game Interface", "Advanced Graphic Input", "All Global Internet", 0, "人間と同等以上に多様な知的タスクをこなせる汎用人工知能を指します。"],
+    ["LLMの学習において、大量のテキストデータから「次のトークンを予測する」ことで基礎能力を獲得する段階は？", "事前学習（Pre-training）", "事後評価", "デプロイ", "キャッシュクリア", 0, "インターネット規模のデータで言語や世界の知識を学ぶ最初のフェーズです。"],
+    ["事前学習後のモデルに対し、特定の指示に従う形式（質問と回答ペア）で学習させる段階は？", "指示チューニング（Instruction Tuning / SFT）", "オーバーホール", "デフラグ", "ベンチマーク", 0, "これにより単なる続きの文章生成ではなく「質問に答えるアシスタント」になります。"],
+    ["AIベンチマークテストにおいて、古い問題がモデルの学習データに含まれてしまい正当な評価ができなくなる問題は？", "データ汚染（Data Contamination）", "熱暴走", "メモリリーク", "パケットロス", 0, "常に新しい非公開問題や動的ベンチマークが求められる理由です。"],
+    ["人間の評価者が2つの匿名AIモデルの回答を比較してどちらが良いか投票するランキングサイトは？", "Chatbot Arena（LMArena）", "食べログ", "価格.com", "天気.jp", 0, "ブラインドテスト形式のEloレーティングは実用性能の指標として注目されています。"],
+    ["エッジデバイスやスマホ上でAI処理を高速化するために搭載される専用プロセッサの略称は？", "NPU（Neural Processing Unit）", "FDD", "CD-ROM", "CRT", 0, "最新のスマホやAI PCには低消費電力でAI推論をこなすNPUが内蔵されています。"],
+    ["AIアシスタントに「あなたは経験豊富な編集者です」のように役割を与えるプロンプト技法は？", "ロールプレイング（役割付与）", "シャットダウン", "コンパイル", "エンコード", 0, "視点やトーン・専門性のレベルを揃えるのに非常に効果的です。"],
+    ["プロンプトで「ステップバイステップで考えてください」と促すことで精度が上がる理由は？", "中間推論ステップを出力させることで論理飛躍や計算ミスを防げるから", "文字数が増えて課金が増えるから", "AIが休憩できるから", "通信速度が上がるから", 0, "Zero-shot Chain-of-Thoughtとして知られるシンプルかつ強力な技法です。"],
+    ["AIの出力をJSONやCSVなどの決まったプログラム処理しやすい形式で確実に受け取る機能は？", "構造化出力（Structured Outputs）", "フリーフォーマット", "手書き出力", "音声のみ出力", 0, "アプリ開発やAPI連携でパースエラーを防ぐために不可欠な機能です。"],
+    ["複数のAIエージェントが「企画役・実装役・レビュー役」のように役割分担して協調する仕組みは？", "マルチエージェントシステム", "シングルタスクOS", "モノリシックカーネル", "スタンドアロン電卓", 0, "単一モデルより複雑なプロジェクトや検証作業で高い成果を出せます。"],
+    ["AIの学習に必要な高品質なテキストデータが枯渇しつつある問題に対し、AI自身が生成したデータで学習する手法は？", "合成データ（Synthetic Data）学習", "アナログテープ録音", "手書き模写", "紙媒体スキャン", 0, "ただし品質管理を誤ると出力が劣化する「モデル崩壊（Model Collapse）」に注意が必要です。"],
+    ["AIが生成した低品質な画像やテキストがSNS上に大量に溢れる現象を指すネットスラングは？", "AIスロップ（AI Slop）", "スパムメール", "ブルーバック", "フィッシング", 0, "中身のない大量生成コンテンツを指す言葉として定着しました。"],
+    ["Webサイト側がAIのクローラー（学習用データ収集ボット）に対してアクセス可否を示す伝統的ファイルは？", "robots.txt（およびllms.txtなどの新提案）", "config.sys", "autoexec.bat", "boot.ini", 0, "クローラー制御やAI向けサイト要約ファイル（llms.txt）の活用が進んでいます。"],
+    ["2024年に成立し、リスクレベルに応じてAI規制を定めた世界初の包括的AI法規は？", "EU AI法（EU AI Act）", "道路交通法", "消防法", "建築基準法", 0, "禁止されるAI・高リスクAI・透明性義務などを定めた国際的に影響力のある法律です。"],
+    ["オープンウェイト（重み公開）モデルの代表例として広く開発者に利用されているシリーズは？", "Llama・Qwen・Gemma・DeepSeek・Mistralなど", "Windows 95", "MS-DOS", "Adobe Flash", 0, "自社サーバーやローカル環境でカスタマイズできるオープンモデルの進化も目覚ましいです。"],
+    ["長大なドキュメントやシステムプロンプトを毎回再計算せず高速・低コスト化するAPI機能は？", "コンテキストキャッシュ（Prompt Caching）", "ディスクフォーマット", "デフラグメンテーション", "スクリーンロック", 0, "同じ背景資料を何度も参照するチャットやエージェントでコストを大幅削減できます。"],
+    ["AIに外部の天気予報APIやデータベース検索関数を呼び出させる仕組みを何と呼ぶ？", "Function Calling（ツール呼び出し / Tool Use）", "オーバークロック", "ハイバネーション", "ミラーリング", 0, "AIが「いつどの関数をどの引数で呼ぶか」を判断し、リアルタイム処理を可能にします。"],
+    ["AIが人間の指示の意図を汲み取り、有害な出力を避けつつ役立つ回答をするように調整する研究分野は？", "AIアライメント（AI Alignment）", "ホイールアライメント", "テキスト中央揃え", "ハードディスク初期化", 0, "AIの安全性と人間の価値観との整合性を保つ最重要テーマです。"],
+    ["音声合成AIの進化により、数秒〜数十秒のサンプル音声から声質を再現する技術は？", "ボイスクローニング（ゼロショット音声合成）", "レコードカッティング", "ボコーダー固定変調", "モールス変換", 0, "多言語吹き替えやアクセシビリティに役立つ一方、悪用防止の認証も重要です。"],
+    ["AI検索エンジン（Perplexityや検索統合型LLM）が従来のキーワード検索と大きく異なる点は？", "複数のWebページを要約・統合し、出典リンク付きで直接回答を組み立てる点", "検索結果が1件しか出ない点", "インターネットに接続しない点", "アルファベット順しか探せない点", 0, "情報収集のスタイルを検索から「対話と統合」へと大きく変えました。"],
+    ["AIの推論コストを下げるために、大きな教師モデルから小さな生徒モデルへ知識を引き継ぐ手法は？", "蒸留（Distillation / 知識蒸留）", "発酵", "醸造", "乾燥", 0, "軽量で高速ながら高い知能を持つ小型モデルの育成に欠かせません。"],
+    ["視覚障害者のサポートや現場作業支援として注目されている、カメラとマイクを搭載したAIデバイスは？", "AIスマートグラス（AIメガネ）", "ブラウン管テレビ", "黒電話", "タイプライター", 0, "見ている風景をリアルタイムにAIが解説・翻訳してくれるウェアラブル端末が進化中！"],
+    ["AIが「わからないことはわからない」と答えられるようにする能力・研究テーマは？", "キャリブレーション（不確実性の推定・拒否応答）", "オーバーフィッティング", "メモリスワップ", "オーバーフロー", 0, "無理に推測してハルシネーションを起こすのを防ぐために重要です。"],
+    ["1つのプロンプトだけでなく、複数のプロンプトを段階的に繋いで複雑な処理を安定させる設計手法は？", "プロンプトチェーン（Prompt Chaining）", "無限ループ", "デッドロック", "スパゲッティコード", 0, "「要約→分析→翻訳→校正」のように工程を分けることで品質が安定します。"],
+    ["LLMのトークン生成速度を表す指標「tokens/sec（TPS）」が高いと何が良い？", "回答が画面に表示されるスピードが速く、待ち時間が短くなる", "電気代が10倍になる", "文字が小さくなる", "画像が白黒になる", 0, "対話のテンポやエージェントの作業完了時間に直結する指標です。"],
+    ["AIの学習データに偏りがあることで、特定の性別や属性に対して不公平な出力をしてしまう問題は？", "AIバイアス（アルゴリズムバイアス）", "クロック周波数", "リフレッシュレート", "アスペクト比", 0, "採用・審査・医療などの分野では特に公平性の検証が重視されます。"],
+    ["AIを活用して議事録作成・要約・タスク抽出を自動化するツールを使う際のベストプラクティスは？", "固有名詞や決定事項・数値に誤認識がないか人間が最終確認する", "録音データを一切見ずに破棄する", "自動送信して確認しない", "全員の名前を消す", 0, "「AIが下書きを作り、人間が最終承認する（Human-in-the-loop）」が基本です。"],
+    ["人間がAIの判断プロセスに重要なポイントで介入・承認を行う設計思想を何と呼ぶ？", "Human-in-the-Loop（ヒューマン・イン・ザ・ループ）", "Hands-Off-Forever", "Zero-Human-Control", "Auto-Delete-All", 0, "メール送信や決済など重要なアクションでは人間の確認を挟むのが安全です。"],
+    ["3Dモデル生成AIの進化により、テキストや1枚の画像から生成できるようになったものは？", "テクスチャ付きの3Dメッシュデータ（GLB/OBJ等）", "紙の折り紙設計図のみ", "2Dの白黒ドット絵のみ", "音声ファイルのみ", 0, "ゲーム制作やAR/VRコンテンツ開発の試作スピードを劇的に変えています。"],
+    ["AIの学習において、訓練データに過剰に適合しすぎて未知のデータに弱くなる現象は？", "過学習（Overfitting）", "早学習", "逆学習", "無学習", 0, "過去問の丸暗記だけで応用問題が解けない状態に似ています。"],
+    ["データセンターでAIの学習・推論を大量に行う際に大きな課題となっているインフラ要素は？", "電力消費量と冷却システム・GPUの確保", "フロッピーディスクの不足", "FAX用紙の切れ", "電話交換手の不足", 0, "次世代データセンターでは省電力化や再生可能エネルギーの活用が急務です。"],
+    ["AI翻訳の最新トレンドで、単なる直訳ではなく自然なニュアンスを出すために有効なプロンプト工夫は？", "読み手・用途・トーン（ビジネス/カジュアル等）と文脈を指定する", "単語を1語ずつバラバラに送る", "句読点を全部消す", "逆さまに入力する", 0, "文脈やターゲット層を伝えることでプロ翻訳者レベルの自然な表現になります。"],
+    ["開発者が複数のLLM（GPT・Claude・Gemini等）を統一インターフェースで切り替えられるようにする仕組みは？", "モデルルーター / 統合APIゲートウェイ", "アナログモデム", "ハブ空港", "プリンタドライバ", 0, "タスクの難易度やコストに応じて最適なモデルを自動選択する運用が増えています。"],
+    ["AIが「画面上のボタンの位置やレイアウト」を視覚的に理解してマウスやキーボード操作を行う技術は？", "Computer Use / GUIエージェント", "コマンドプロンプト専用", "BIOS設定", "デフラグ", 0, "APIがない従来のデスクトップアプリやWeb画面もAIが操作できるようになっています。"],
+    ["AIを使った学習・勉強法として効果的な「ソクラテス式問答法」プロンプトとは？", "すぐに答えを教えず、ヒントや質問を投げかけて自分で考えさせる", "答えだけ1単語で表示する", "無関係な雑談をする", "テスト問題を隠す", 0, "理解を深めたいときに非常に役立つAIチューター活用法です。"],
+    ["AIモデルのサイズを表す「7B」「70B」などの「B」は何の単位？", "Billion（10億パラメータ）", "Byte（バイト）", "Bit（ビット）", "Block（ブロック）", 0, "7Bは約70億パラメータ、70Bは約700億パラメータを意味します。"],
+    ["小規模モデル（SLM：Small Language Models）が注目されている主な理由は？", "低コスト・高速動作で特定タスクやオンデバイス実行に適しているから", "パラメータが1個しかないから", "インターネットを物理的に切断するから", "電気を使わないから", 0, "すべてに超巨大モデルを使うのではなく適材適所のモデル選択が主流です。"],
+    ["AIによる医療支援の分野で実用化が進んでいる代表的な領域は？", "レントゲンやCT画像の異常検知サポート・創薬候補の探索", "外科手術の完全無人放置", "患者への診断書偽造", "薬局の無人閉店", 0, "医師の見落とし防止や新薬開発の期間短縮に大きく貢献しています。"],
+    ["AIが生成したコードのセキュリティリスクを防ぐために必要なことは？", "脆弱性スキャンやコードレビューを実施し、APIキー等をハードコードしない", "生成されたコードを一切読まず本番公開する", "パスワードをコード内に平文で書く", "テストを全部スキップする", 0, "AIは動くコードを素早く書きますが、セキュリティ検証は人間の責任です。"],
+    ["チャットAIとの長い会話で回答の精度が落ちてきたときに有効なリフレッシュ方法は？", "要点をまとめて新しいスレッド（新規チャット）を立てる", "同じ質問を100回連投する", "ブラウザを拡大する", "モニターの電源を切る", 0, "不要な履歴をリセットして綺麗なコンテキストで再スタートすると精度が戻ります。"],
+    ["AIガバナンスにおいて「説明可能なAI（XAI）」が求められる理由は？", "AIがなぜその結論や判断に至ったかの根拠を人間が理解・検証できるようにするため", "AIに詩を朗読させるため", "画面の文字を大きくするため", "音声を可愛くするため", 0, "金融・医療・行政など高い信頼性が求められる分野で不可欠です。"],
+    ["PDFや長文資料をアップロードして、音声のポッドキャスト風対話番組を自動生成できるGoogleのAIノートツールは？", "NotebookLM", "Paint", "Notepad", "Calculator", 0, "資料に基づいた要約やAudio Overview（音声概要）機能で学習・調査ツールとして大ヒット！"],
+    ["AIの学習や推論に欠かせない半導体メモリで、GPUの性能を大きく左右する広帯域メモリは？", "HBM（High Bandwidth Memory）", "FDD", "CD-RW", "VHS", 0, "AIサーバー向けGPUの供給や性能の鍵を握る重要な半導体技術です。"],
+    ["AIが生成した文章の「AIっぽさ（定型的な言い回し）」を減らすためのプロンプト工夫は？", "具体的な文体サンプルを示し、禁止表現や箇条書きの多用制限を指定する", "「AIらしく書いて」と頼む", "全部カタカナにする", "1文を500文字にする", 0, "実際の自分の文章サンプルをFew-shotで渡すと自然な文体になります。"],
+    ["AIを活用したカスタマーサポートで、従来のシナリオ型チャットボットと比べた最大の進化は？", "ユーザーの曖昧な質問意図を理解し、マニュアルを横断して柔軟に回答できる点", "「1か2を押してください」しか言えない点", "営業時間外は電源が落ちる点", "日本語しか理解できない点", 0, "複雑な問い合わせにも自然な会話で一次対応が可能になっています。"],
+    ["AIの進化によって今後ますます人間側に重要になると言われるスキルは？", "課題設定力（問いを立てる力）・目利き力・最終判断と責任", "単純なデータ転記の速さだけ", "円周率の暗記桁数", "電話帳の丸暗記", 0, "AIに何をやらせ、出力の良し悪しを見極める力が価値を持ちます。"],
+    ["AIのAPI利用時に「Rate Limit（レート制限）」に引っかかったときの適切な対処法は？", "指数バックオフ（待機時間を少しずつ増やしてリトライ）を実装する", "0.001秒間隔で無限連打する", "PCを再起動し続ける", "ケーブルを抜く", 0, "API開発における基本的なエラーハンドリング手法です。"],
+    ["動画やWeb会議のリアルタイム翻訳AIが進化したことで可能になった体験は？", "お互いが母国語で話しながら、ほぼ同時に翻訳字幕や吹き替え音声で会話すること", "無言で手話のみ強制", "1文ごとに1時間待つこと", "翻訳結果を郵送すること", 0, "言語の壁を越えたコミュニケーションが日常的になりつつあります。"],
+    ["AIがWebブラウジングを行う際、ログインが必要なサイトや課金操作で取るべき安全な設計は？", "人間の明示的な確認・承認ステップ（Human Confirmation）を必須にする", "AIにクレジットカード番号を覚えさせて自動決済させる", "パスワードを全公開する", "確認なしで全購入する", 0, "誤操作や不正利用を防ぐための重要な安全設計です。"],
+    ["LLMの評価指標の1つで、モデルの「指示追従能力」や「フォーマット遵守率」を測る際に重視される点は？", "「300文字以内でJSON形式のみ出力」といった制約を正確に守れるか", "文字数が多ければ多いほど良い", "絵文字を大量に入れること", "質問を無視すること", 0, "システム組み込みでは指示遵守の正確さが極めて重要です。"],
+    ["オープンソースAIコミュニティの中心的なプラットフォームとして、モデルやデータセットが共有されているサイトは？", "Hugging Face", "食べログ", "クックパッド", "メルカリ", 0, "AI開発者にとってのGitHub的存在として広く使われています。"],
+    ["AIによる「要約」を依頼するときに、情報の抜け漏れを防ぐ良い指示方法は？", "「重要な数値・固有名詞・結論と根拠を落とさずに箇条書きで」と指定する", "「適当に短くして」とだけ言う", "「最初の1行だけ残して」と言う", "「ランダムに削って」と言う", 0, "残すべき情報の観点を指定することで実用的な要約が得られます。"],
+    ["AIシステムにおける「ガードレール（Guardrails）」の役割は？", "有害・不適切な入出力や個人情報漏洩を検知してブロックする安全装置", "画面の枠線を太くする装飾", "キーボードのカバー", "マウスパッド", 0, "入力側と出力側の両方に安全フィルタを設けるのが一般的です。"],
+    ["AI開発で使われる「ベクトルデータベース（Vector DB）」の主な用途は？", "エンベディングされたデータの高速な意味的類似度検索（RAGなど）", "動画ファイルの再生", "OSの起動", "プリンタのインク残量管理", 0, "キーワード完全一致ではなく「意味が近い情報」を瞬時に検索できます。"],
+    ["「ゼロショット学習（Zero-shot）」とはどのような能力を指す？", "そのタスク専用の具体例を一切与えなくても、指示文だけでタスクをこなす能力", "電力を一切使わない能力", "学習データが0件の能力", "画面を見ずに操作する能力", 0, "汎用的な言語理解力が高いモデルほど優れたゼロショット性能を発揮します。"],
+    ["AIエージェントが長期的なタスクをこなすために不可欠な「メモリ（記憶）」機能の種類は？", "作業中の短期記憶（コンテキスト）と、過去の好みや知識を保持する長期記憶", "RAMの取り外し", "フロッピーの初期化", "記憶喪失モード", 0, "ユーザーの好みや過去の経緯を覚えているパーソナルAIの要です。"],
+    ["AIを使ったアイデア出し（ブレインストーミング）で質の高い案を引き出すコツは？", "「まず20個発散させてから、実現性と独自性でトップ3を選んで」と段階を分ける", "「一番普通の案を1個だけ出して」と言う", "「同じ案を10回書いて」と言う", "条件を一切言わない", 0, "発散フェーズと収束フェーズを分けることで平凡な回答を避けられます。"],
+    ["2026年のソフトウェア開発現場で普及している「AIコードレビュー」の利点は？", "人間が見落としがちなエッジケースやバグ・スタイル違反を即座に指摘できる点", "人間が一切コードを書かなくて済む点", "サーバー代が無料になる点", "バグが完全にゼロになる保証", 0, "人間のレビュアーと組み合わせることでコード品質が大幅に向上します。"],
+    ["AI生成コンテンツの「著作権」について、日本や米国などで現在一般的な考え方は？", "人間の創作的寄与（工夫や編集）がない単なるプロンプト一発生成のみでは著作物性が認められにくい", "プロンプトを1文字打てば100%著作権が発生する", "すべてのAI画像に自動的に特許がつく", "著作権法が廃止された", 0, "人間の創造的関与の度合いが重要な判断基準とされています。"],
+    ["AIアシスタントに「自己批判（Self-Reflection）」をさせるプロンプト手法とは？", "一度出した回答に対して「問題点や漏れがないか批判的に見直して改善して」と指示する", "AIを怒鳴りつける", "PCの画面を叩く", "電源を切る", 0, "自己検証ステップを入れるだけで論理ミスや抜け漏れが大きく減ります。"],
+    ["音声や動画の「文字起こしAI（Whisper系など）」の精度を高める録音側の工夫は？", "マイクを話者に近づけ、周囲の雑音や発言の被りを減らすこと", "遠くの部屋から小声で話す", "大音量のBGMを流しながら話す", "マイクを布で何重にも巻く", 0, "入力音声のクリアさはAIの認識精度に直結します。"],
+    ["AIが「表データ（CSVやExcel）」を分析する際に使われる強力な機能は？", "Pythonなどのコード実行環境（Code Interpreter）を使って集計・グラフ化すること", "数字を勘で暗算すること", "表を画像として塗りつぶすこと", "データを全部消すこと", 0, "LLM単体の暗算ではなくPythonコードを生成・実行させることで正確な計算ができます。"],
+    ["AIツールを導入した組織で「シャドーAI（Shadow AI）」が問題視される理由は？", "会社の許可なく社員が個人アカウントに社内機密データを入力する情報漏洩リスクがあるから", "画面が暗くなるから", "影絵が流行るから", "夜しか使えないから", 0, "安全な社内AI環境の整備と利用ガイドライン策定が重要です。"],
+    ["マルチモーダルAIに「手書きのホワイトボードやノートの写真」を読み込ませる便利な使い方は？", "テキスト化・構造化・図解の清書・ToDoリスト抽出を自動で行う", "写真を白黒にするだけ", "紙を燃やす", "インクの色を変えるだけ", 0, "会議のホワイトボード撮影から即座に議事録やタスク表を作れます。"],
+    ["AIモデルの「コンテキスト長が長い」ことと「長文のどこに書かれた情報も正確に拾える（Needle in a Haystack）」ことの関係は？", "容量が大きくても中間部分の情報を見落とす（Lost in the Middle）場合があるため両方の性能が重要", "長ければ必ず100%完璧に拾える", "短い方が長文を読める", "全く無関係", 0, "「干し草の中の針」テストなどで長文検索精度が評価されます。"],
+    ["AIの進化により、個人のクリエイターや少人数チームが得た最大の恩恵は？", "企画・デザイン・実装・翻訳・動画制作まで少人数で高品質に形にできる機動力", "電気代が0円になったこと", "睡眠が不要になったこと", "税金が免除されること", 0, "アイデアを形にするまでのハードルが劇的に下がりました。"],
+    ["AIと上手に付き合うための「黄金ルール」として最も適切な考え方は？", "AIを万能の神ではなく「優秀だが時々間違える相棒」として検証しながら活用する", "AIの言うことを無条件に100%盲信する", "AIを一切使わず拒絶する", "責任をすべてAIに押し付ける", 0, "人間の判断力とAIのスピードを掛け合わせるのが最強の活用法です！"]
+  ],
+
+  // --------------------------------------------------------------------------
+  // THEME 5: AI画像生成 (100問: モデル・FLUX・SDXL・LoRA・ControlNet・ComfyUI・設定)
+  // --------------------------------------------------------------------------
+  ai_img: [
+    ["ノード（箱）と線を繋いで画像生成の処理フローを視覚的に組める、現在主流の強力なUIツールは？", "ComfyUI", "Excel", "メモ帳", "ペイント3D", 0, "ComfyUIは最新モデルへの最速対応と高いカスタマイズ性で標準ツールとなっています。"],
+    ["Black Forest Labsが開発し、テキスト描画精度や写実性で画像生成界に大きな衝撃を与えたモデルファミリーは？", "FLUX.1（フラックス）", "Windows XP", "Blender 2.4", "Flash Player", 0, "FLUX.1 [dev] や [schnell] は高いプロンプト追従性と文字描写力で大人気！"],
+    ["キャラクターの顔立ちや特定の絵柄・衣装を少ない画像枚数で追加学習させ、生成時に適用できる軽量ファイルは？", "LoRA（ローラ）", "BIOS", "DLL", "ZIP", 0, "複数のLoRAを重み付きで組み合わせて使うことも可能です。"],
+    ["棒人間のポーズ・線画・深度マップなどをガイドにして、構図や姿勢を正確に制御する拡張技術は？", "ControlNet（コントロールネット）", "DefragNet", "Telnet", "Intranet", 0, "OpenPoseやCanny、Depthなどを使うことで狙い通りのポーズ指定ができます。"],
+    ["画像生成の仕組みの多くで採用されている、ノイズだらけの画像から少しずつノイズを除去して絵を浮かび上がらせるモデルは？", "拡散モデル（Diffusion Model / フローマッチング）", "データベース検索モデル", "表計算マクロ", "音声圧縮コーデック", 0, "ノイズから段階的に画像を復元するプロセスが画像生成の基本です。"],
+    ["プロンプトに「描いてほしくない要素（崩れた指・低画質・文字など）」を指定する欄を何と呼ぶ？", "ネガティブプロンプト（Negative Prompt）", "ポジティブシンキング", "システムログ", "メタデータ", 0, "品質維持や不要要素の除外に欠かせない入力欄です（一部最新モデルでは不要な場合も）。"],
+    ["入力したプロンプトにどれだけ忠実に従うかを調整するパラメータ「CFG Scale（ガイダンススケール）」を高くしすぎるとどうなる？", "色が飽和して破綻・焼き付いたような不自然な画像になる", "真っ白な画像になる", "解像度が8Kになる", "生成時間が0秒になる", 0, "モデルに応じた適正値（SDXLなら5〜7、FLUX系なら低め〜3.5程度など）が重要です。"],
+    ["画像生成の「Steps（ステップ数）」を増やすと基本的にどう変化する？", "ディテールが細かく描き込まれるが、生成時間が長くなる", "画像サイズが小さくなる", "色が白黒になる", "VRAM使用量が0になる", 0, "一定数を超えると変化が頭打ちになるため、サンプラーに合った適正ステップ数を選びます。"],
+    ["同じプロンプト・同じ設定で「全く同じ画像」を再現するために固定する数値は？", "Seed値（シード値）", "IPアドレス", "MACアドレス", "ポート番号", 0, "Seedを固定してプロンプトや設定を微調整することで比較検証ができます。"],
+    ["既存の画像を入力し、その構図や色味を活かしながら別のタッチや内容へ描き変える生成モードは？", "img2img（Image to Image）", "txt2txt", "mp3towav", "zip2exe", 0, "ラフスケッチから清書イラストを生成する際などにも大活躍します。"],
+    ["画像の一部だけをマスク（塗りつぶし）して、服装の変更や指の修正・背景の描き直しを行う機能は？", "インペインティング（Inpainting）", "デフラグメンテーション", "フォーマット", "オーバークロック", 0, "失敗した部分だけをピンポイントで直せる必須テクニックです。"],
+    ["元の画像の外側（上下左右）にキャンバスを拡張し、背景や全身を自然に描き足す機能は？", "アウトペインティング（Outpainting）", "トリミング", "モザイク処理", "減色処理", 0, "バストアップのイラストを全身図に広げたり、横長壁紙にするのに便利です。"],
+    ["img2imgやインペインティングにおける「Denoising Strength（ノイズ除去強度）」を0.2など低くするとどうなる？", "元の画像の形や色を強く残したまま微修正される", "元の画像が完全に消えて別物になる", "画像が反転する", "モノクロになる", 0, "0.2〜0.4は仕上げや微調整、0.7以上は大胆な描き変えに向いています。"],
+    ["潜像空間（Latent Space）の圧縮データと、人間が見るピクセル画像を相互変換する重要なモデル部品は？", "VAE（Variational Autoencoder）", "CPUクーラー", "サウンドカード", "LANポート", 0, "VAEが合っていないと色がくすんだり灰色のモヤがかかった画像になることがあります。"],
+    ["まず低めの解像度で構図を決めて生成し、その後拡大して高精細に描き直す2段階高解像度化手法は？", "Hires.fix（ハイレゾフィックス）", "ローレゾダウン", "モノクロ変換", "フレームスキップ", 0, "いきなり高解像度で生成すると起きやすい「人物の分裂や破綻」を防げます。"],
+    ["生成された画像の解像度を2倍・4倍に引き上げつつディテールを補完する拡大専用モデル群は？", "アップスケーラー（ESRGAN / UltraSharp / SUPIR等）", "ダウンスケーラー", "圧縮ソフト", "デバッガ", 0, "仕上げに4x-UltraSharpなどで拡大すると印刷や壁紙にも耐える精細さになります。"],
+    ["Euler a、DPM++ 2M Karras、UniPCなどの名前で知られる、ノイズ除去の計算アルゴリズムを何と呼ぶ？", "サンプラー（Sampler）", "イコライザー", "コンプレッサー", "ルーター", 0, "サンプラーによって描き込みの質感や収束の速さが変わります。"],
+    ["プロンプト内で特定の単語の強調度を上げる（SD WebUI系での）標準的な記述法は？", "(word:1.3) のように括弧と数値で重み付けする", "【word】と書く", "wordを100回連打する", "赤文字にする", 0, "1.1〜1.3程度の控えめな重み付けが破綻を防ぐコツです。"],
+    ["ローカル環境で画像生成AIを快適に動かすために最も重要なPCパーツと指標は？", "NVIDIA製GPUとVRAM（ビデオメモリ）容量", "フロッピーディスクドライブ", "DVDマルチドライブ", "キーボードのLED数", 0, "FLUXやSDXLの快適動作にはVRAM 12GB〜16GB以上が強く推奨されます。"],
+    ["ControlNetで「OpenPose（オープンポーズ）」を使うと何を制御できる？", "関節と骨格データによる人物のポーズ・手の形・視線", "画像のファイルサイズ", "音声のピッチ", "文字コード", 0, "複雑なアクションポーズや複数人の配置を思い通りに指定できます。"],
+    ["ControlNetで「Canny（キャニー）」を使うと何をもとに画像を生成する？", "元画像から抽出した輪郭線（エッジ検出）", "元画像のファイル作成日時", "元画像のGPS位置情報", "元画像の音声データ", 0, "線画の着色や構図を保ったまま別スタイルへ変換する際に大活躍します。"],
+    ["ControlNetで「Depth（デプス）」を使うと何がガイドになる？", "手前と奥の距離を表す深度マップ（遠近感・立体構造）", "画像の彩度のみ", "ファイル名の長さ", "画面の明るさ設定", 0, "背景の奥行きや建築物の立体感を維持したままスタイル変換できます。"],
+    ["1枚の参照画像の「絵柄・キャラクターの顔・雰囲気」をプロンプトだけでなく画像特徴量として反映させる技術は？", "IP-Adapter（Image Prompt Adapter）", "TCP/IPアダプタ", "AC電源アダプタ", "HDMI変換器", 0, "キャラクターの一貫性維持やスタイル転写で非常に人気の機能です。"],
+    ["セキュリティリスクのある古いPyTorch形式（.ckpt）に代わり、安全かつ高速に読み込めるモデル保存形式は？", ".safetensors（セーフテンソルズ）", ".exe", ".bat", ".scr", 0, "悪意あるコード実行を防げるため、現在は.safetensors形式が標準です。"],
+    ["SDXL（Stable Diffusion XL）の基本推奨解像度（総ピクセル数）の目安は？", "1024×1024（約100万ピクセル基準のアスペクト比）", "64×64", "16×16", "10000×10000", 0, "1024×1024や832×1216、1216×832など総画素数約100万前後で最も安定します。"],
+    ["モデルをFP8やGGUF（Q4/Q8等）に量子化する主なメリットは？", "少ないVRAM容量のGPUでも大型モデルが動作するようになる", "画質が必ず4倍良くなる", "VRAMが物理的に増える", "インターネット速度が上がる", 0, "FLUX.1などの大型モデルをVRAM 8GB〜12GB環境で動かす際の救世主です。"],
+    ["人物の顔や目が小さく潰れてしまったときに、顔領域だけを自動検出して高精細に描き直す人気の拡張機能は？", "ADetailer（After Detailer）", "CCleaner", "WinRAR", "TaskManager", 0, "全身イラストや引きの構図で顔のクオリティを劇的に安定させる定番ツールです。"],
+    ["アニメ調イラスト系モデル（Illustrious、NoobAI、Pony系など）でよく使われるタグ形式プロンプトの特徴は？", "Danbooru系の英語タグをカンマ区切りで並べるスタイル", "俳句の五七五のみ", "SQLクエリ文", "HTMLタグのみ", 0, "1girl, solo, blue eyes, school uniform のようにタグで要素を指定します。"],
+    ["自然言語の文章で詳しく描写するプロンプト（FLUXやSD3.5、Imagen系などで有効）の特徴は？", "位置関係・光の当たり方・表情のニュアンスを文章で正確に伝えられる", "単語1個しか書けない", "英語以外の言語が完全禁止", "記号しか使えない", 0, "「左側に赤い傘を持った少女が立ち、右奥に夕暮れの駅が見える」といった構図指定が得意！"],
+    ["画像生成において「アスペクト比」を横長（16:9など）にしたい場合の注意点は？", "モデルの推奨総ピクセル数に合わせて幅と高さを8の倍数（または64の倍数）に設定する", "幅だけ10000pxにして高さ10pxにする", "正方形のまま無理やり引き伸ばす", "解像度を10×10にする", 0, " latent空間の仕様上、幅・高さは8や64の倍数にするのが基本ルールです。"],
+    ["生成された画像に埋め込まれることが多い「PNG Info（メタデータ）」には何が記録されている？", "使用したプロンプト・ネガティブ・Seed・モデル名・サンプラー等の設定情報", "ユーザーの銀行口座", "PCの画面録画動画", "マイクの録音音声", 0, "過去の自分の画像や共有画像を読み込んで設定を再現できる便利な仕組みです。"],
+    ["2つのチェックポイントモデルを一定の比率で混ぜ合わせて新しい画風を作る手法を何と呼ぶ？", "モデルマージ（Model Merging）", "ディスクパーティション", "ファイル分割", "デフラグ", 0, "アニメ調モデルとリアル調モデルを混ぜて「2.5D半リアル調」を作るなどが人気！"],
+    ["プロンプトで「masterpiece, best quality」などの品質タグを入れる主な目的は？", "学習データ内の高評価・高品質な画像群の分布に近づけるため", "PCのファンを最大回転させるため", "電気代を節約するため", "ファイル名を長くするため", 0, "ただしモデルによっては品質タグが不要・逆効果になる場合もあります。"],
+    ["画像生成の「バッチサイズ（Batch Size）」と「バッチカウント（Batch Count）」の違いは？", "Batch SizeはVRAMを使って同時並列生成、Batch Countは1枚ずつ順番に連続生成", "どちらも全く同じ意味", "Batch Sizeは白黒、Countはカラー", "どちらも解像度設定", 0, "VRAMが足りないときはBatch Sizeを1にしてBatch Countを増やすのが安全です。"],
+    ["「CLIP Skip」という設定値を1から2に変更することがアニメ系モデルでよく行われる理由は？", "テキストエンコーダの最終層手前の抽象的な特徴を使うことでプロンプトの自由度や画風が馴染むため", "処理がスキップされて真っ白になるため", "音が鳴るようになるため", "モニターが消えるため", 0, "SD1.5系アニメモデルではCLIP Skip 2が推奨されるケースが多くありました。"],
+    ["プロンプトで特定の単語や特徴を学習させた軽量ファイル「Textual Inversion（Embedding）」の拡張子は？", ".pt や .safetensors（数十KB〜数百KBの超軽量サイズ）", ".iso", ".mp4", ".avi", 0, "LoRAよりもさらに小さく、特定の画風やネガティブ要素の詰め合わせによく使われます。"],
+    ["複数のキャラクターを1枚の画面に描き分ける際、特徴が混ざる（属性漏れ・Color Bleed）のを防ぐテクニックは？", "Regional Prompter（領域分割プロンプト）やマスク制御を使う", "全員の名前を100回書く", "CFGを100にする", "解像度を100pxにする", 0, "「左側は赤髪の少女、右側は青髪の少女」と領域ごとにプロンプトを割り当てられます。"],
+    ["画像生成における「シード値のバリエーション（Variation Seed）」を使うと何ができる？", "元の画像の構図や雰囲気を保ったまま、表情や細部だけを少し変えた差分を作れる", "全く関係ない風景画像になる", "ファイルが削除される", "モノクロ反転する", 0, "立ち絵の表情差分や微調整を探すときにとても便利です。"],
+    ["ライティング（照明）を指定する英語プロンプト「rim lighting（リムライト）」の効果は？", "被写体の輪郭に沿って光が当たり、背景から立体的に浮かび上がる", "画面全体が真っ暗になる", "人物が消える", "魚眼レンズになる", 0, "逆光気味の輪郭光はアニメイラストでも実写風でもドラマチックに映えます。"],
+    ["カメラアングルを指定するプロンプト「from below / low angle」はどのような構図になる？", "下から見上げるアングル（迫力や背の高さが強調される）", "真上から見下ろすアングル", "真後ろからのアングル", "顕微鏡の拡大図", 0, "逆に上から見下ろす構図は「from above / high angle」です。"],
+    ["「Depth of Field（被写界深度 / bokeh）」をプロンプトに入れるとどんな視覚効果になる？", "ピントが合っている被写体以外（背景や前景）が美しくボケる", "画面全体がくっきり平面になる", "白黒の線画になる", "上下逆さまになる", 0, "ポートレート写真や映画のワンシーンのような奥行きが出せます。"],
+    ["高解像度画像（4K以上など）をVRAM不足を起こさずにアップスケール・生成するタイル分割手法は？", "Tiled Diffusion / Tiled VAE / Ultimate SD Upscale", "Single Pixel Mode", "No-VRAM Mode", "Auto-Crash Mode", 0, "画像を小さなタイルに分割して処理・結合することでVRAM消費を抑えます。"],
+    ["イラストの「線画抽出」や「塗り絵用下絵」を作りたいときに便利なControlNetのプリプロセッサは？", "Lineart（ラインアート） / SoftEdge / Scribble", "AudioWave", "HexDump", "PingTest", 0, "写真や3Dモデルから綺麗な線画を取り出して再着色できます。"],
+    ["プロンプトの効きが悪いときに確認すべき基本的なチェックポイントは？", "スペルミス・矛盾するタグの混在・モデルの得意ジャンルとの一致", "モニターの角度", "マウスの電池残量", "椅子の高さ", 0, "「night（夜）」と「bright sunlight（強い太陽光）」のような矛盾タグは破綻の原因になります。"],
+    ["画像生成AIにおいて「スタイル（画風）」を指定するキーワードの例として適切なものは？", "watercolor（水彩画）、cel shading（アニメ塗り）、impasto（厚塗り）", "MP3、WAV、FLAC", "SSD、HDD、NVMe", "TCP、UDP、ICMP", 0, "画材やレンダリング手法を指定することで表現の幅が大きく広がります。"],
+    ["「Inpaint only masked（マスク領域のみインペイント）」オプションを使う最大のメリットは？", "指定した狭い範囲を高解像度で計算するため、指や目などの細部が非常に綺麗に描き直せる", "画像全体がリセットされる", "生成時間が10倍かかる", "色が反転する", 0, "小さなパーツの修正には「マスク領域のみ」モードが不可欠です。"],
+    ["リアルタイム描画（Realtime Generation / LCM / Turbo / Schnell系モデル）の特徴は？", "1〜4ステップ程度の超高速推論により、スケッチを描きながら即座に画像が変化する", "1枚生成するのに3日かかる", "ステップ数を1000にする必要がある", "白黒しか出ない", 0, "蒸留技術により数ステップで高品質な画像を瞬時に出力できます。"],
+    ["2025〜2026年にかけて進化した「画像編集特化モデル（コンテキスト編集型・Flux Kontext / Qwen-Image-Edit等）」の強みは？", "「彼女の服を赤いドレスに変えて」「背景を夜にして」と自然言語で指示して一貫性を保った編集ができる点", "毎回まったく別の顔になる点", "文字が一切読めない点", "白黒画像しか入力できない点", 0, "マスクを手動で塗らなくても対話的に画像の一部を編集できる時代になっています。"],
+    ["「X/Y/Z Plot」スクリプト・ノードを使うと何が効率的にできる？", "CFG値・ステップ数・LoRAの重みなどのパラメータ変化を比較表（グリッド画像）で一括検証できる", "3Dプリンタでフィギュアを印刷する", "音楽を作曲する", "動画をYouTubeに自動投稿する", 0, "どの設定値が一番綺麗に出るかを一目で比較できる検証の定番機能です。"],
+    ["プロンプトで「ダイナミックな構図」を作りたいときに効果的なカメラワーク指定は？", "Dutch angle（ダッチアングル／傾いた構図）、fisheye lens（魚眼レンズ）、dynamic pose", "passport photo（証明写真）", "front view straight（正面直立）", "flat document scan（書類スキャン）", 0, "カメラの傾きやレンズの歪みを指定すると一気に動きのある絵になります。"],
+    ["画像生成モデルの「ライセンス（商用利用可否・クレジット表記など）」を確認する際に重要なことは？", "使用するベースモデルとLoRAの両方のライセンス条件を確認すること", "ネット上の画像はすべて無条件で著作権フリーと思い込むこと", "モデル名を偽装すること", "ライセンス欄を読まずに消すこと", 0, "非商用限定モデルや再配布条件など、モデルごとに規約が異なります。"],
+    ["「Aesthetic Score（美的スコア）」が高い画像を生成するために意識する構図・色彩のコツは？", "視線誘導・主題と背景のコントラスト・ライティングの明確化", "画面の隅に豆粒サイズで描く", "全要素を同じグレーで塗る", "プロンプトを1文字にする", 0, "光の方向と色のメリハリを指定すると完成度がぐっと上がります。"],
+    ["手や指の描写が崩れたときに、最も確実かつ綺麗に修正するワークフローは？", "インペインティングで手の部分だけをマスクし、手に関するプロンプトを指定して再生成する", "画面全体を最初から100回やり直す", "CFGを50にする", "解像度を半分にする", 0, "全体が良くできている画像はインペイントで部分修正するのが鉄則です。"],
+    ["「Negative Embedding（EasyNegative等）」とはどのような仕組み？", "低品質や破綻を表す多数のネガティブ要素を1つの短いキーワードにまとめた埋め込みファイル", "PCを高速化するパーツ", "画像を暗号化する鍵", "音声ノイズ除去ソフト", 0, "ネガティブプロンプト欄をスッキリさせつつ品質を底上げできます。"],
+    ["画像生成で「アニメのスクリーンショット風」の質感を出したいときに有効なタグは？", "anime screenshot, retro anime, soft lighting, 1990s anime style など", "3D photorealistic Unreal Engine 5", "oil painting on canvas", "pencil sketch on paper", 0, "年代やメディア質感（アニメ塗り・セル画風など）を指定すると狙い通りの絵柄になります。"],
+    ["ComfyUIで「ワークフローの共有」が非常に簡単な理由は？", "生成されたPNG画像のメタデータ内にノード構成そのものが埋め込まれており、画像をドラッグ＆ドロップで復元できるから", "紙に手書きで配線図を描くから", "フロッピーディスクで郵送するから", "URLが1万文字あるから", 0, "画像ファイルをComfyUI画面にドロップするだけで同じノード構成が再現されます！"],
+    ["「ControlNet Tile（タイル）」の主な活用方法は？", "アップスケール時に元画像の構造を保ちながら細かいディテールを描き足すこと", "お風呂のタイルを数えること", "画像をモザイクで隠すこと", "ファイルを分割圧縮すること", 0, "高解像度化（Ultimate SD Upscale等）と組み合わせると驚異的な精細さになります。"],
+    ["プロンプトで「逆光（backlighting）」と「レンズフレア（lens flare）」を組み合わせるとどんな効果が出る？", "太陽や光源が背後にあり、眩しい光の筋が差し込むエモーショナルな演出になる", "完全な暗闇になる", "雨が降り始める", "画面がモノクロになる", 0, "夕暮れの校舎や海辺のシーンと相性抜群のライティングです。"],
+    ["「CFG Rescale」や「Dynamic Thresholding」といった補助機能の役割は？", "高めのCFG設定時でも色の白飛びや黒潰れ・飽和を抑えて自然な階調を保つこと", "画像の縦横比を強制的に1:1にすること", "GPUの温度を下げること", "プロンプトを自動翻訳すること", 0, "強いプロンプト追従性と自然な発色を両立させたいときに役立ちます。"],
+    ["「LoRAの適用強度（Strength / Weight）」を2.0など極端に高くしすぎると起きやすい現象は？", "学習データに引っ張られすぎて画風が崩壊したりノイズだらけになる", "処理速度が10倍速くなる", "解像度が16Kになる", "VRAMが半分になる", 0, "通常は0.6〜1.0の範囲で調整するのが最もバランス良く機能します。"],
+    ["イラスト生成で「目（瞳）の描き込み」を美しくするためのプロンプトキーワードは？", "detailed eyes, sparkling eyes, expressive eyes, catchlight", "closed eyes, blindfold", "no eyes, blank face", "blurry face", 0, "瞳のハイライト（キャッチライト）や透明感を指定するとキャラの魅力が引き立ちます。"],
+    ["「img2img」でラフ画（棒人間や簡単な色置き）から清書を作る場合、適切なDenoising Strengthの目安は？", "0.55〜0.75前後（元の配置を活かしつつ描き込みをAIに任せる）", "0.01（ほぼ何も変わらない）", "1.00（元画像を完全に無視する）", "0.00", 0, "ラフの粗さに応じて0.6前後から調整するのが定番です。"],
+    ["AI画像生成において「色収差（chromatic aberration）」をプロンプトに入れるとどんな効果が出る？", "レンズの端のような赤と青のわずかな色のズレが加わり、フィルムやアニメ的な空気感が出る", "画像が白黒になる", "解像度が半分になる", "ファイルが破損する", 0, "エモいイラストやレトロな雰囲気を出したいときに人気のエフェクトタグです。"],
+    ["「Scheduler（スケジューラ：Karras, Exponential, SGM Uniform, Beta等）」の役割は？", "各ステップごとにどれだけのノイズ量を除去していくかの減衰カーブを決めること", "PCの自動シャットダウン予約", "カレンダーの予定通知", "CPUのクロック固定", 0, "サンプラーとスケジューラの組み合わせで仕上がりの滑らかさが変わります。"],
+    ["生成したキャラクターの「服装だけ」を変えたいが、顔とポーズは完全に維持したい場合に最適な手法は？", "インペインティングで服の領域だけをマスクする（またはControlNet＋マスク制御）", "新規でテキストからランダム生成する", "Seed値を毎回変える", "解像度を下げる", 0, "顔部分をマスク外にすることで同一人物のまま衣装チェンジができます。"],
+    ["プロンプトで「視点（POV：Point of View）」を指定するとどのような構図になる？", "カメラ（観察者）自身の目線から見た一人称視点の構図", "宇宙から地球を見下ろす構図", "真横からの断面図", "設計図の三面図", 0, "キャラクターがこちらに手を差し伸べるような臨場感ある絵が作れます。"],
+    ["「キャラクターシート（Character Sheet / Turnaround）」をプロンプトで生成する目的は？", "同一キャラクターの正面・横・後ろ姿の三面図や表情集を1枚にまとめてデザイン設定を作るため", "キャラクターを消すため", "背景だけを描くため", "文字だけを並べるため", 0, "ゲーム開発や漫画制作のキャラクターデザイン案出しに非常に便利です。"],
+    ["ローカル環境で複数の画像生成UI（ComfyUI、WebUI Forge、InvokeAI等）を管理する際、モデルファイルを共有する方法は？", "シンボリックリンクやextra_model_paths.yamlで共通のモデルフォルダを参照させる", "同じ10GBのモデルを10箇所にコピーする", "毎回インターネットから再ダウンロードする", "USBメモリに1つずつ入れる", 0, "SSDの容量を節約する上で欠かせない運用テクニックです。"],
+    ["「Flux.1 [schnell]」と「Flux.1 [dev]」の主な違いは？", "schnellは4ステップ高速生成向け（Apache 2.0）、devは20〜50ステップの高品質生成向け", "schnellは音声専用、devは表計算専用", "どちらも白黒専用", "違いはファイル名だけ", 0, "schnellは商用利用もしやすいライセンスと爆速生成が魅力です。"],
+    ["画像生成の「色味（カラーパレット）」を統一したいときにプロンプトで指定すると効果的な表現は？", "pastel color palette（パステル調）、warm tones（暖色系）、monochromatic blue（青基調）など", "random colors（ランダム色）", "no color（色なし）", "error color", 0, "全体のトーンを言葉で指定することでプロ並みの色彩設計になります。"],
+    ["AI画像生成で「手書きのサインやロゴ文字」を画像内に綺麗に入れたい場合に相性が良いモデルは？", "FLUX.1、Imagen 3、GPT Image、Ideogram、Qwen-Imageなどの最新テキスト描画対応モデル", "初期のSD1.4単体", "ノイズ除去なしの画像", "アップスケーラー単体", 0, "最新世代のモデルはスペルミスが激減し、看板やTシャツの文字も自然に描けます。"],
+    ["「ControlNet Reference（リファレンス）」機能を使うと何ができる？", "追加学習（LoRA）なしで、1枚の参照画像からキャラクターの雰囲気や画風を引き継いで生成できる", "ファイルの圧縮率を上げる", "音声をテキスト化する", "PCのメモリを増設する", 0, "手軽なキャラクター維持やスタイル統一に役立つ機能です。"],
+    ["生成AIイラストで「質感のメリハリ」を出すために背景をシンプルにしたいときのプロンプトは？", "simple background, white background, blurred background", "extremely crowded detailed chaos background", "text wall background", "glitch screen", 0, "立ち絵やキャラクターデザインを見やすくしたいときの定番指定です。"],
+    ["「Upscale by 1.5x」と「Upscale by 2.0x」を比較したとき、Hires.fixでの一般的な注意点は？", "倍率が高すぎるとVRAM消費が急増し、細部が過剰に描き込まれすぎることがある", "倍率が高いほど生成が速くなる", "2.0xにするとモノクロになる", "1.5xはエラーになる", 0, "1.5〜2.0倍の範囲でDenoisingを0.3〜0.5程度に抑えるのが綺麗に仕上げるコツです。"],
+    ["画像生成の「プロンプト順」において、一般的にモデルが強く意識しやすい位置は？", "プロンプトの前半（先頭に近い単語ほど重要度が高く反映されやすい）", "一番最後の単語だけ", "真ん中の1文字だけ", "順番は完全に無関係", 0, "主題（誰が・何を）を最初に書き、背景やライティングを後ろに続けるのが基本構成です。"],
+    ["「Depth Anything」などの最新深度推定プリプロセッサをControlNetで使う利点は？", "細い髪や複雑な背景の奥行きも高精度に抽出でき、立体感の破綻が起きにくい点", "処理が1時間かかる点", "白黒反転する点", "音声が出力される点", 0, "従来のMiDaSよりも精細な奥行きマップを生成できます。"],
+    ["AI画像生成で「水彩画風」の滲みや紙の質感を出すために効果的なキーワードは？", "watercolor painting, wet on wet, paper texture, soft edges", "3D render, octane render, glossy plastic", "pixel art, 8-bit", "vector logo, flat icon", 0, "画材特有の表現用語を入れるとアナログ風の温かみが出ます。"],
+    ["「Prompt Matrix（プロンプトマトリックス）」機能の使い道は？", "特定のキーワードの有無による出力結果の違いを一覧画像で比較検証すること", "映画のチケットを予約すること", "行列計算の宿題を解くこと", "画面を緑色の文字で埋めること", 0, "「このタグは本当に効果があるのか？」を確かめるのに便利です。"],
+    ["人物の「視線」をカメラ（見る側）に向けさせたいときの定番プロンプトは？", "looking at viewer（見る側を見つめる）", "looking away（そっぽを向く）", "back to viewer（後ろ姿）", "eyes closed（目を閉じる）", 0, "キャラクターの魅力を伝えるポートレートや立ち絵の必須タグです。"],
+    ["逆にキャラクターが風景を眺めているような自然な横顔・後ろ姿を作りたいときは？", "looking away, looking at horizon, profile, from side", "staring straight at camera", "mugshot", "ID photo", 0, "視線を外すことで物語性やエモーショナルな雰囲気を演出できます。"],
+    ["画像生成の「VAEデコード」時にメモリ不足（Out of Memory）エラーが出た場合の有効な対策は？", "Tiled VAE（タイル分割デコード）を有効にする", "モニターの解像度を下げる", "マウスを速く動かす", "スピーカーをミュートにする", 0, "高解像度画像の最終変換時のOOMエラーを防ぐ特効薬です。"],
+    ["「Face Swap（顔交換・ReActor等）」ツールの主な用途は？", "生成した画像や参照画像の顔を特定のキャラクターの顔特徴に差し替えて一貫性を保つこと", "画像のファイル名をランダムに変えること", "音声の声を入れ替えること", "PCの壁紙を消すこと", 0, "仕上げにADetailerと組み合わせることで自然な顔統合が可能です。"],
+    ["プロンプトで「光と影のコントラストが強いドラマチックな表現」を指定する美術用語は？", "chiaroscuro（キアロスクーロ / 明暗法）、dramatic shadows", "flat pastel lighting", "overexposed white", "no shadows", 0, "絵画的な重厚感や映画的な陰影を出したいときに使われます。"],
+    ["AI画像生成で「食べ物（飯テロ画像）」を美味しそうに生成する重要なキーワードは？", "steam rising（湯気）、glistening（ツヤ）、appetizing、food photography", "rotten, moldy, cold", "blurry grey mush", "wireframe", 0, "湯気や光の反射（ツヤ）を指定すると驚くほど美味しそうな料理写真になります。"],
+    ["「ControlNet Recolor（リカラー）」の主な機能は？", "白黒写真やグレースケール化したイラストに、プロンプトの指示で自然な着色を行うこと", "カラー写真を白黒にすること", "画像を回転させること", "ファイルを削除すること", 0, "モノクロ漫画のカラー化や配色バリエーション検討に便利です。"],
+    ["ComfyUIにおいて、ノードの繋がり（データ型）が正しいかどうかを視覚的に確認する手がかりは？", "入出力ピンの色と名前（MODEL, CLIP, VAE, LATENT, IMAGEなど）が一致していること", "ノードの面積の大きさ", "モニターの明るさ", "文字のフォント種類", 0, "同じ色のピン同士を繋ぐ設計になっているため、データフローが一目でわかります。"],
+    ["「LoRAのトリガーワード（Trigger Word）」とは何？", "そのLoRAの学習時に紐付けられた特定のキーワードで、プロンプトに入れると効果が強く発動する言葉", "PCを再起動する呪文", "エラーを発生させる言葉", "モデルを削除するコマンド", 0, "配布ページの推奨トリガーワードを入れることで本来の再現度が発揮されます。"],
+    ["画像生成で「ガラスや水面の反射」を美しく描きたいときに有効なプロンプトは？", "reflections, translucent glass, caustic light, crystal clear water", "opaque matte cardboard", "muddy wall", "solid concrete", 0, "光の屈折や透明感を指定すると幻想的なシーンが作れます。"],
+    ["「Dynamic Prompts（ダイナミックプロンプト）」拡張機能を使うと何ができる？", "{赤|青|黄色}のように選択肢を書いておくと、生成ごとにランダムまたは組み合わせで衣装や色を変えてくれる", "プロンプトを自動削除する", "電気代を半額にする", "音声で読み上げる", 0, "バリエーション豊かな大量生成やガチャ感覚の試行錯誤に最適です。"],
+    ["AI画像生成の「アスペクト比 9:16」が最も適している用途は？", "スマホの縦画面壁紙・縦型ショート動画・立ち絵ポートレート", "映画館の横長スクリーン", "パノラマ風景壁紙", "CDジャケット", 0, "まさにこのゲームの画面比率と同じ、スマホ時代の主役フォーマットです！"],
+    ["「Subsurface Scattering（表面下散乱 / SSS）」をプロンプトに入れると人物の肌はどう表現される？", "光が皮膚のわずかに内側で散乱し、透明感と血色感のある生き生きとした肌になる", "肌が金属のロボットになる", "肌が石像になる", "透明人間になる", 0, "3DCGやリアル系ポートレートで人形っぽさを消す重要なライティング表現です。"],
+    ["画像生成の練習やスキルアップに最も効果的なアプローチは？", "良いと思った画像のプロンプト・構成要素（主題・構図・光・画風）を分解して言語化する習慣", "何も考えずに同じ単語を1万回押すこと", "設定画面を一切見ないこと", "解像度を毎回10pxにすること", 0, "「なぜこの絵が素敵に見えるのか」を言葉にできる人ほど狙い通りの画像を生成できます。"],
+    ["複数のControlNetを同時に適用する（マルチControlNet）と何が可能になる？", "「ポーズはOpenPoseで固定し、背景の奥行きはDepthで固定する」といった高度な複合制御", "PCが必ずフリーズする", "画像が2枚に分裂する", "色がモノクロになる", 0, "人物と背景の両方を精密にコントロールしたいときのプロ技です。"],
+    ["「Latent Upscale（潜在空間アップスケール）」と「Pixel Upscale（画像空間アップスケール）」の違いは？", "Latentはノイズ除去過程で直接拡大再計算し、Pixelは完成画像に拡大モデルを適用する", "どちらも全く同じ処理", "Latentは音声用、Pixelは動画用", "どちらも使われない", 0, "Pixelアップスケール後に軽くimg2imgをかける手法（Ultimate SD Upscale等）も定番です。"],
+    ["プロンプトに「symmetrical（対称）」を入れるとどのような構図になりやすい？", "左右対称の整った構図（神殿、紋章、正面ポートレートなど）", "画面が斜めに崩れる構図", "被写体が画面外に消える構図", "ランダムな落書き", 0, "建築物やファンタジーの魔法陣などを描くときに非常に効果的です。"],
+    ["「Golden Hour（ゴールデンアワー）」をライティングとして指定するとどんな時間帯の光になる？", "日の出直後や日没前の、柔らかく温かみのある黄金色の斜光", "真夜中の真っ暗闇", "真昼の蛍光灯の下", "雷雨の稲妻", 0, "人物も風景も劇的に美しく見せる魔法の時間帯です。"],
+    ["AI画像生成で「ドット絵（ピクセルアート）」を作りたいときに有効なプロンプトのコツは？", "pixel art, 16-bit, sprite, sharp pixels, limited color palette と指定する", "photorealistic 8k DSLR camera", "oil painting canvas", "watercolor wash", 0, "写真系ワードを抜いてピクセルアート特有の語彙を入れるのがポイントです。"],
+    ["ローカル画像生成環境で「モデルやLoRAが増えすぎて整理できない」ときの定番管理方法は？", "種類・ベースモデル（SDXL / FLUX / Illustrious等）ごとにサブフォルダ分けしてプレビュー画像を置く", "全部デスクトップに散らかす", "拡張子を全部消す", "毎日全削除する", 0, "ベースモデルごとにフォルダを分けることで互換性エラーも防げます。"],
+    ["AI画像生成ツールを使う上で最も楽しく創造性を広げられるマインドセットは？", "偶然生まれた面白い表現も楽しみながら、自分のイメージを言語化・調整していくこと", "1回目で完璧に出なければPCを諦めること", "他人の作品を自分の手描きと偽ること", "設定を一切変えないこと", 0, "試行錯誤と発見のプロセスこそがAI画像生成の醍醐味です！"]
+  ]
+};
+
+/* ============================================================================
+   6. MAIN GAME STATE & CONTROLLER
+============================================================================ */
+const Game = (() => {
+  const SAVE_KEY = 'jiro_5dungeons_save_v1';
+
+  let state = {
+    cleared: { js: false, jc: false, jk: false, ai: false, ai_img: false },
+    totalWins: 0,
+    totalCorrect: 0,
+    seenOpening: false,
+    seenAllClear: false
+  };
+
+  // Runtime session state
+  let screen = 'title'; // 'title' | 'hub' | 'adv' | 'battle' | 'result'
+  let activeDungeon = null;
+  let stageIdx = 0; // 0, 1, 2 (2 = boss)
+  let advQueue = [];
+  let advIndex = 0;
+  let advTextTimer = null;
+  let advFullText = '';
+  let advDoneTyping = false;
+  let advOnComplete = null;
+
+  // Battle runtime
+  let battleQuestions = [];
+  let qIndex = 0;
+  let correctCount = 0;
+  let answered = false;
+  let timerVal = 15.0;
+  let timerInterval = null;
+
+  const container = document.getElementById('screen-container');
+  const btnHome = document.getElementById('btn-home');
+
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        state = {
+          cleared: { js: false, jc: false, jk: false, ai: false, ai_img: false, ...(parsed.cleared || {}) },
+          totalWins: parsed.totalWins || 0,
+          totalCorrect: parsed.totalCorrect || 0,
+          seenOpening: !!parsed.seenOpening,
+          seenAllClear: !!parsed.seenAllClear
+        };
+      }
+    } catch (e) {
+      console.warn('Save load failed', e);
+    }
+  }
+
+  function writeSave() {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn('Save write failed', e);
+    }
+  }
+
+  function hasSaveData() {
+    return Object.values(state.cleared).some(Boolean) || state.totalWins > 0 || state.seenOpening;
+  }
+
+  function showModal(title, body, buttons) {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').textContent = body;
+    const act = document.getElementById('modal-actions');
+    act.innerHTML = '';
+    buttons.forEach(b => {
+      const btn = document.createElement('button');
+      btn.className = b.className || 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 hover:bg-slate-600';
+      btn.textContent = b.label;
+      btn.onclick = () => {
+        AudioSys.se('click');
+        hideModal();
+        if (b.onClick) b.onClick();
+      };
+      act.appendChild(btn);
+    });
+    document.getElementById('modal-overlay').classList.remove('hidden');
+  }
+
+  function hideModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+  }
+
+  function confirmDeleteSave() {
+    AudioSys.se('click');
+    showModal(
+      'セーブデータの削除',
+      'クリア状況や戦績などのセーブデータをすべて消去しますか？この操作は元に戻せません。',
+      [
+        { label: 'キャンセル', className: 'px-3 py-2 rounded-xl text-xs font-bold bg-slate-700 hover:bg-slate-600 text-slate-200' },
+        {
+          label: '削除する',
+          className: 'px-3 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white',
+          onClick: () => {
+            localStorage.removeItem(SAVE_KEY);
+            state = {
+              cleared: { js: false, jc: false, jk: false, ai: false, ai_img: false },
+              totalWins: 0,
+              totalCorrect: 0,
+              seenOpening: false,
+              seenAllClear: false
+            };
+            renderTitle();
+          }
+        }
+      ]
+    );
+  }
+
+  function confirmReturnHub() {
+    if (screen === 'hub' || screen === 'title') return;
+    AudioSys.se('click');
+    showModal(
+      'ダンジョン選択へ戻る',
+      '現在の進行を中断してダンジョン選択画面に戻りますか？',
+      [
+        { label: '続ける', className: 'px-3 py-2 rounded-xl text-xs font-bold bg-slate-700 hover:bg-slate-600 text-slate-200' },
+        {
+          label: '一覧へ戻る',
+          className: 'px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950',
+          onClick: () => {
+            clearBattleTimer();
+            renderHub();
+          }
+        }
+      ]
+    );
+  }
+
+  function clearBattleTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  /* ---------------------- SCREEN 1: TITLE ---------------------- */
+  function renderTitle() {
+    screen = 'title';
+    clearBattleTimer();
+    btnHome.classList.add('hidden');
+    AudioSys.startBgm('hub');
+
+    const clearedCount = Object.values(state.cleared).filter(Boolean).length;
+
+    container.innerHTML = `
+      <div class="flex-1 flex flex-col justify-between p-4 bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-950 text-center overflow-y-auto">
+        <div class="mt-2">
+          <span class="inline-block px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-300 text-[11px] font-extrabold tracking-wider">
+            2026最新トレンド＆知識クイズRPG
+          </span>
+          <h1 class="mt-2 text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-300 to-pink-300 drop-shadow">
+            次郎の5大クイズダンジョン
+          </h1>
+          <p class="mt-1 text-xs text-slate-300">
+            40歳・ふっくらフサフサの次郎が挑む全500問の試練！
+          </p>
+        </div>
+
+        <!-- Protagonist Jiro Showcase -->
+        <div class="my-1 flex flex-col items-center">
+          <div class="relative p-3 rounded-3xl bg-slate-800/70 border border-slate-700/80 shadow-xl anim-idle">
+            ${renderPortraitSVG('jiro', 'happy', 156)}
+            <div class="mt-1 px-3 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-200 text-[11px] font-bold">
+              主人公：次郎（40歳・太め・黒髪フサフサ）
+            </div>
+          </div>
+          <div class="mt-2 flex items-center gap-3 text-[11px] text-slate-300 bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700">
+            <span>制覇ダンジョン: <strong class="text-amber-300">${clearedCount} / 5</strong></span>
+            <span>|</span>
+            <span>累計勝利: <strong class="text-emerald-300">${state.totalWins}勝</strong></span>
+          </div>
+        </div>
+
+        <!-- Start & Save Controls -->
+        <div class="flex flex-col gap-2 mb-1">
+          <button id="btn-start-game" onclick="Game.startFromTitle()" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-base shadow-lg shadow-orange-500/25 active:scale-95 transition">
+            ${hasSaveData() ? '冒険をつづける' : 'ゲームスタート'} <span class="keycap">Enter</span>
+          </button>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="Game.playOpeningAdv()" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-bold">
+              OPストーリー再生 <span class="keycap">O</span>
+            </button>
+            <button onclick="Game.confirmDeleteSave()" class="py-2 px-3 rounded-xl bg-rose-950/70 hover:bg-rose-900/80 border border-rose-700/60 text-rose-200 text-xs font-bold">
+              セーブデータ削除 <span class="keycap">Del</span>
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400">
+            操作：スマホはタップ / PCは数字キー[1-5]・[Enter]・[Space]対応
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
+  function startFromTitle() {
+    AudioSys.init();
+    AudioSys.se('start');
+    if (!state.seenOpening) {
+      playOpeningAdv();
+    } else {
+      renderHub();
+    }
+  }
+
+  function playOpeningAdv() {
+    AudioSys.init();
+    AudioSys.se('click');
+    const lines = [
+      { speaker: 'ナレーション', jiroMood: 'normal', opp: null, text: '時は2026年――世の中の流行もAI技術も、目まぐるしいスピードで進化を続けていた。' },
+      { speaker: '次郎（40歳）', jiroMood: 'think', opp: null, text: '「ふぅ……俺も今年で40歳。お腹周りは立派になったが、髪の毛はまだまだフサフサ現役だぜ！」' },
+      { speaker: '次郎（40歳）', jiroMood: 'normal', opp: null, text: '「そんな俺の前に現れた『5つのクイズダンジョン』。女子小・中・高生の最新トレンドから、AI全般、AI画像生成まで……！」' },
+      { speaker: '次郎（40歳）', jiroMood: 'happy', opp: null, text: '「各ダンジョン3人の強敵を倒せば完全制覇！おじさんの知識と観察眼、今こそ見せてやるぜ！」' }
+    ];
+    startAdv(lines, () => {
+      state.seenOpening = true;
+      writeSave();
+      renderHub();
+    });
+  }
+
+  /* ---------------------- SCREEN 2: DUNGEON SELECT HUB ---------------------- */
+  function renderHub() {
+    screen = 'hub';
+    clearBattleTimer();
+    btnHome.classList.add('hidden');
+    AudioSys.startBgm('hub');
+
+    const clearedCount = Object.values(state.cleared).filter(Boolean).length;
+    const allCleared = clearedCount === 5;
+
+    const cardsHtml = DUNGEONS.map((d, idx) => {
+      const isCleared = state.cleared[d.id];
+      return `
+        <button onclick="Game.selectDungeon(${idx})" class="w-full text-left p-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700/90 border ${isCleared ? 'border-amber-400/80 shadow-md shadow-amber-500/10' : 'border-slate-700'} flex items-center justify-between gap-2 transition active:scale-[0.98]">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br ${d.color} flex items-center justify-center text-xl shrink-0 shadow">
+              ${d.icon}
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="font-black text-sm text-white truncate">${d.name}</span>
+                <span class="keycap">${idx + 1}</span>
+              </div>
+              <p class="text-[11px] text-slate-300 truncate">${d.themeLabel}</p>
+            </div>
+          </div>
+          <div class="shrink-0">
+            ${isCleared
+              ? '<span class="px-2 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-[11px] shadow">★CLEAR</span>'
+              : '<span class="px-2 py-1 rounded-lg bg-slate-700 text-slate-300 font-bold text-[11px]">挑戦する</span>'}
+          </div>
+        </button>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="flex-1 flex flex-col justify-between p-3 bg-gradient-to-b from-slate-900 via-indigo-950/60 to-slate-950 overflow-y-auto">
+        <!-- Header Status -->
+        <div class="flex items-center justify-between bg-slate-800/80 border border-slate-700 rounded-2xl p-2.5">
+          <div class="flex items-center gap-2">
+            <div class="w-11 h-11 rounded-xl bg-slate-900 border border-slate-600 overflow-hidden flex items-center justify-center shrink-0">
+              ${renderPortraitSVG('jiro', allCleared ? 'happy' : 'normal', 44)}
+            </div>
+            <div>
+              <div class="text-xs font-black text-amber-300">挑むダンジョンを選ぼう！</div>
+              <div class="text-[11px] text-slate-300">制覇数: <strong class="text-white">${clearedCount}/5</strong> ・ 5問中3問正解で勝利</div>
+            </div>
+          </div>
+          <button onclick="Game.renderTitle()" class="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-[11px] font-bold text-slate-200">
+            タイトル
+          </button>
+        </div>
+
+        <!-- 5 Dungeon List -->
+        <div class="flex flex-col gap-2 my-2">
+          ${cardsHtml}
+        </div>
+
+        <!-- Bottom Action / Grand Ending Replay -->
+        <div class="flex flex-col gap-1.5">
+          ${allCleared ? `
+            <button onclick="Game.playAllClearAdv()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-pink-400 text-slate-950 font-black text-xs shadow-lg animate-pulse">
+              🎉 全ダンジョン制覇エンディングを再生 <span class="keycap">E</span>
+            </button>
+          ` : ''}
+          <div class="flex items-center justify-between text-[10px] text-slate-400 px-1">
+            <span>※オートセーブ対応済</span>
+            <button onclick="Game.confirmDeleteSave()" class="text-rose-400 hover:underline font-bold">セーブデータ削除</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function selectDungeon(idx) {
+    AudioSys.init();
+    AudioSys.se('start');
+    activeDungeon = DUNGEONS[idx];
+    stageIdx = 0;
+    startStagePreAdv();
+  }
+
+  /* ---------------------- SCREEN 3: ADV DIALOGUE ENGINE ---------------------- */
+  function startAdv(lines, onComplete) {
+    screen = 'adv';
+    btnHome.classList.remove('hidden');
+    AudioSys.startBgm('adv');
+    advQueue = lines;
+    advIndex = 0;
+    advOnComplete = onComplete;
+    renderAdvStep();
+  }
+
+  function renderAdvStep() {
+    if (advTextTimer) clearInterval(advTextTimer);
+    const line = advQueue[advIndex];
+    if (!line) {
+      if (advOnComplete) advOnComplete();
+      return;
+    }
+
+    const oppHtml = line.opp
+      ? `<div class="flex flex-col items-center ${line.isBoss ? 'anim-boss' : 'anim-idle'}">
+           ${renderPortraitSVG(line.opp, line.oppMood || 'normal', 155)}
+           <span class="mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black ${line.isBoss ? 'bg-rose-600 text-white' : 'bg-slate-800/90 text-amber-200 border border-slate-600'}">
+             ${line.oppLabel || ''}
+           </span>
+         </div>`
+      : '';
+
+    container.innerHTML = `
+      <div onclick="Game.advanceAdv()" class="flex-1 flex flex-col justify-between p-3 bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-950 cursor-pointer relative">
+        <!-- Top Stage Info & Skip -->
+        <div class="flex items-center justify-between z-10">
+          <span class="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-[11px] font-bold text-amber-300">
+            ${activeDungeon ? `${activeDungeon.icon} ${activeDungeon.name} (${stageIdx + 1}/3戦目)` : '📖 ストーリー'}
+          </span>
+          <button onclick="event.stopPropagation(); Game.skipAdv()" class="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600 text-[11px] font-bold text-slate-300">
+            スキップ ⏭ <span class="keycap">S</span>
+          </button>
+        </div>
+
+        <!-- Character Stage -->
+        <div class="flex-1 flex items-center justify-around px-2 my-1">
+          <div class="flex flex-col items-center anim-idle">
+            ${renderPortraitSVG('jiro', line.jiroMood || 'normal', line.opp ? 128 : 155)}
+            <span class="mt-1 px-2 py-0.5 rounded-full bg-sky-900/80 border border-sky-500/40 text-sky-200 text-[10px] font-bold">次郎</span>
+          </div>
+          ${oppHtml}
+        </div>
+
+        <!-- ADV Dialogue Box -->
+        <div class="bg-slate-900/95 border-2 border-amber-400/70 rounded-2xl p-3.5 shadow-2xl min-h-[138px] flex flex-col justify-between">
+          <div>
+            <div class="inline-block px-2.5 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black text-xs mb-1.5">
+              ${line.speaker}
+            </div>
+            <p id="adv-text" class="text-sm leading-relaxed text-white font-bold"></p>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-amber-300/90 mt-2">
+            <span>${advIndex + 1} / ${advQueue.length}</span>
+            <span class="font-extrabold animate-bounce">▼ タップ / Enter で次へ</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    advFullText = line.text;
+    advDoneTyping = false;
+    let charPos = 0;
+    const textEl = document.getElementById('adv-text');
+    advTextTimer = setInterval(() => {
+      charPos++;
+      textEl.textContent = advFullText.slice(0, charPos);
+      if (charPos % 3 === 0) AudioSys.se('blip');
+      if (charPos >= advFullText.length) {
+        clearInterval(advTextTimer);
+        advTextTimer = null;
+        advDoneTyping = true;
+      }
+    }, 24);
+  }
+
+  function advanceAdv() {
+    if (!advDoneTyping) {
+      if (advTextTimer) clearInterval(advTextTimer);
+      advTextTimer = null;
+      const textEl = document.getElementById('adv-text');
+      if (textEl) textEl.textContent = advFullText;
+      advDoneTyping = true;
+      return;
+    }
+    AudioSys.se('click');
+    advIndex++;
+    if (advIndex >= advQueue.length) {
+      if (advOnComplete) advOnComplete();
+    } else {
+      renderAdvStep();
+    }
+  }
+
+  function skipAdv() {
+    if (advTextTimer) clearInterval(advTextTimer);
+    AudioSys.se('click');
+    if (advOnComplete) advOnComplete();
+  }
+
+  /* ---------------------- BATTLE FLOW & ADV HOOKS ---------------------- */
+  function startStagePreAdv() {
+    const char = activeDungeon.chars[stageIdx];
+    const lines = [
+      {
+        speaker: char.isBoss ? `【BOSS】${char.name}` : char.name,
+        jiroMood: 'normal',
+        opp: char.id,
+        oppMood: char.isBoss ? 'attack' : 'normal',
+        oppLabel: `${char.role}・${char.name}`,
+        isBoss: char.isBoss,
+        text: char.intro[0]
+      },
+      {
+        speaker: char.isBoss ? `【BOSS】${char.name}` : char.name,
+        jiroMood: 'think',
+        opp: char.id,
+        oppMood: 'attack',
+        oppLabel: `${char.role}・${char.name}`,
+        isBoss: char.isBoss,
+        text: char.intro[1]
+      },
+      {
+        speaker: '次郎（40歳）',
+        jiroMood: 'happy',
+        opp: char.id,
+        oppMood: 'normal',
+        oppLabel: `${char.role}・${char.name}`,
+        isBoss: char.isBoss,
+        text: `「よし来た！5問中3問正解で俺の勝ちだな。${char.name}さん、いざ尋常にクイズ勝負だ！」`
+      }
+    ];
+    startAdv(lines, () => startQuizBattle());
+  }
+
+  function drawRandomQuestions(themeId, count = 5) {
+    const pool = [...QUIZ_BANK[themeId]];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, count).map(q => {
+      const choicesWithFlag = [0, 1, 2, 3].map(idx => ({
+        text: q[idx + 1],
+        isCorrect: idx === q[5]
+      }));
+      for (let i = choicesWithFlag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [choicesWithFlag[i], choicesWithFlag[j]] = [choicesWithFlag[j], choicesWithFlag[i]];
+      }
+      const newCorrectIdx = choicesWithFlag.findIndex(c => c.isCorrect);
+      return [
+        q[0],
+        choicesWithFlag[0].text,
+        choicesWithFlag[1].text,
+        choicesWithFlag[2].text,
+        choicesWithFlag[3].text,
+        newCorrectIdx,
+        q[6]
+      ];
+    });
+  }
+
+  function startQuizBattle() {
+    screen = 'battle';
+    btnHome.classList.remove('hidden');
+    const char = activeDungeon.chars[stageIdx];
+    AudioSys.startBgm(char.isBoss ? 'boss' : 'battle');
+
+    battleQuestions = drawRandomQuestions(activeDungeon.id, 5);
+    qIndex = 0;
+    correctCount = 0;
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    clearBattleTimer();
+    answered = false;
+    timerVal = 15.0;
+
+    const char = activeDungeon.chars[stageIdx];
+    const q = battleQuestions[qIndex];
+    const labels = ['A', 'B', 'C', 'D'];
+
+    const choicesHtml = [0, 1, 2, 3].map(i => `
+      <button id="choice-${i}" onclick="Game.submitAnswer(${i})" class="choice-btn w-full text-left p-2.5 rounded-xl bg-slate-800/95 hover:bg-slate-700 border-2 border-slate-600 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow">
+        <span class="w-6 h-6 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">${labels[i]}</span>
+        <span class="flex-1 leading-snug">${q[i + 1]}</span>
+        <span class="keycap shrink-0">${i + 1}</span>
+      </button>
+    `).join('');
+
+    container.innerHTML = `
+      <div id="battle-root" class="flex-1 flex flex-col justify-between p-3 bg-gradient-to-b ${char.isBoss ? 'from-rose-950 via-slate-900 to-slate-950' : 'from-slate-900 via-indigo-950/70 to-slate-950'} overflow-y-auto">
+        <!-- Top Battle HUD -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="px-2 py-0.5 rounded-lg font-black ${char.isBoss ? 'bg-rose-600 text-white' : 'bg-amber-400 text-slate-950'}">
+              ${char.isBoss ? '🔥 BOSS BATTLE' : `STAGE ${stageIdx + 1}/3`}
+            </span>
+            <span class="font-extrabold text-slate-200">
+              第 <span class="text-amber-300 text-sm">${qIndex + 1}</span> / 5 問
+            </span>
+            <span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-black">
+              正解: ${correctCount} / 3勝条件
+            </span>
+          </div>
+
+          <!-- Timer Bar -->
+          <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+            <div id="timer-bar" class="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 transition-all duration-100" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Character VS Strip -->
+        <div class="flex items-center justify-between px-2 my-1 bg-slate-900/60 border border-slate-700/70 rounded-2xl py-1">
+          <div class="flex items-center gap-1.5">
+            <div id="jiro-battle-sprite">${renderPortraitSVG('jiro', 'think', 68)}</div>
+            <div class="text-[11px]">
+              <div class="font-black text-sky-300">次郎 (40)</div>
+              <div id="jiro-emote" class="text-slate-300">むむっ、どれだ…？</div>
+            </div>
+          </div>
+          <div class="text-xs font-black text-amber-400">VS</div>
+          <div class="flex items-center gap-1.5 text-right">
+            <div class="text-[11px]">
+              <div class="font-black ${char.isBoss ? 'text-rose-300' : 'text-pink-300'}">${char.name}</div>
+              <div id="opp-emote" class="text-slate-300">${char.role}</div>
+            </div>
+            <div id="opp-battle-sprite" class="${char.isBoss ? 'anim-boss' : ''}">${renderPortraitSVG(char.id, 'normal', 68)}</div>
+          </div>
+        </div>
+
+        <!-- Question Card -->
+        <div class="bg-slate-900/95 border-2 border-indigo-400/60 rounded-2xl p-3 shadow-lg my-1">
+          <div class="text-[10px] font-bold text-indigo-300 mb-1">Q${qIndex + 1}. ${activeDungeon.short}</div>
+          <p class="text-xs sm:text-sm font-extrabold text-white leading-relaxed">${q[0]}</p>
+        </div>
+
+        <!-- 4 Choices -->
+        <div class="flex flex-col gap-1.5 my-1">
+          ${choicesHtml}
+        </div>
+
+        <!-- Feedback Banner (Hidden until answered) -->
+        <div id="answer-feedback" class="hidden rounded-xl p-2.5 text-xs font-bold border"></div>
+      </div>
+    `;
+
+    timerInterval = setInterval(() => {
+      if (answered) return;
+      timerVal = Math.max(0, timerVal - 0.1);
+      const bar = document.getElementById('timer-bar');
+      if (bar) bar.style.width = `${(timerVal / 15.0) * 100}%`;
+      if (timerVal <= 3.0 && Math.abs(timerVal - Math.round(timerVal)) < 0.06) {
+        AudioSys.se('tick');
+      }
+      if (timerVal <= 0) {
+        submitAnswer(-1); // Time up!
+      }
+    }, 100);
+  }
+
+  function submitAnswer(chosenIdx) {
+    if (answered) return;
+    answered = true;
+    clearBattleTimer();
+
+    const q = battleQuestions[qIndex];
+    const correctIdx = q[5];
+    const isCorrect = chosenIdx === correctIdx;
+    const char = activeDungeon.chars[stageIdx];
+
+    // Disable all buttons and highlight correct/wrong
+    for (let i = 0; i < 4; i++) {
+      const btn = document.getElementById(`choice-${i}`);
+      if (!btn) continue;
+      btn.disabled = true;
+      if (i === correctIdx) {
+        btn.classList.remove('bg-slate-800/95', 'border-slate-600');
+        btn.classList.add('bg-emerald-700', 'border-emerald-300');
+      } else if (i === chosenIdx && !isCorrect) {
+        btn.classList.remove('bg-slate-800/95', 'border-slate-600');
+        btn.classList.add('bg-rose-800', 'border-rose-400');
+      } else {
+        btn.classList.add('opacity-50');
+      }
+    }
+
+    const fb = document.getElementById('answer-feedback');
+    const jiroSprite = document.getElementById('jiro-battle-sprite');
+    const oppSprite = document.getElementById('opp-battle-sprite');
+    const jiroEmote = document.getElementById('jiro-emote');
+    const oppEmote = document.getElementById('opp-emote');
+
+    if (isCorrect) {
+      correctCount++;
+      state.totalCorrect++;
+      AudioSys.se('correct');
+      FX.flash('#4ade80');
+      const rect = container.getBoundingClientRect();
+      FX.spawn(rect.width / 2, rect.height * 0.45, 30);
+
+      if (jiroSprite) jiroSprite.innerHTML = renderPortraitSVG('jiro', 'happy', 68);
+      if (oppSprite) oppSprite.innerHTML = renderPortraitSVG(char.id, 'damage', 68);
+      if (jiroEmote) jiroEmote.textContent = 'よっしゃあ！大正解！';
+      if (oppEmote) oppEmote.textContent = 'きゃっ、当てられた！';
+
+      fb.className = 'rounded-xl p-2.5 text-xs font-bold border bg-emerald-950/90 border-emerald-400 text-emerald-100 anim-pop';
+      fb.innerHTML = `<div class="text-emerald-300 font-black mb-0.5">⭕ 正解！ (${correctCount}問目クリア)</div><div class="text-[11px] font-normal text-slate-200">${q[6]}</div>`;
+    } else {
+      AudioSys.se('wrong');
+      FX.flash('#f43f5e');
+      const root = document.getElementById('battle-root');
+      if (root) {
+        root.classList.remove('anim-shake');
+        void root.offsetWidth;
+        root.classList.add('anim-shake');
+      }
+      if (jiroSprite) jiroSprite.innerHTML = renderPortraitSVG('jiro', 'sad', 68);
+      if (oppSprite) oppSprite.innerHTML = renderPortraitSVG(char.id, 'happy', 68);
+      if (jiroEmote) jiroEmote.textContent = chosenIdx === -1 ? 'うわっ、時間切れ…！' : 'しまった、外した…！';
+      if (oppEmote) oppEmote.textContent = 'ふふっ、残念だったわね！';
+
+      fb.className = 'rounded-xl p-2.5 text-xs font-bold border bg-rose-950/90 border-rose-400 text-rose-100 anim-pop';
+      fb.innerHTML = `<div class="text-rose-300 font-black mb-0.5">${chosenIdx === -1 ? '⏰ 時間切れ！' : '❌ 不正解…'} 正解は「${q[correctIdx + 1]}」</div><div class="text-[11px] font-normal text-slate-200">${q[6]}</div>`;
+    }
+
+    setTimeout(() => {
+      qIndex++;
+      if (qIndex < 5) {
+        renderQuestion();
+      } else {
+        finishQuizBattle();
+      }
+    }, 1850);
+  }
+
+  function finishQuizBattle() {
+    const char = activeDungeon.chars[stageIdx];
+    const won = correctCount >= 3;
+
+    if (won) {
+      state.totalWins++;
+      writeSave();
+      AudioSys.se('victory');
+      FX.confetti();
+
+      const lines = [
+        {
+          speaker: '次郎（40歳）',
+          jiroMood: 'happy',
+          opp: char.id,
+          oppMood: 'damage',
+          oppLabel: char.name,
+          isBoss: char.isBoss,
+          text: `「やったぜ！5問中${correctCount}問正解！俺の勝利だ！」`
+        },
+        {
+          speaker: char.name,
+          jiroMood: 'happy',
+          opp: char.id,
+          oppMood: 'happy',
+          oppLabel: char.name,
+          isBoss: char.isBoss,
+          text: char.win[0]
+        },
+        {
+          speaker: char.name,
+          jiroMood: 'normal',
+          opp: char.id,
+          oppMood: 'happy',
+          oppLabel: char.name,
+          isBoss: char.isBoss,
+          text: char.win[1]
+        }
+      ];
+
+      startAdv(lines, () => {
+        if (stageIdx < 2) {
+          stageIdx++;
+          startStagePreAdv();
+        } else {
+          // Dungeon Cleared!
+          handleDungeonClear();
+        }
+      });
+    } else {
+      // Defeated -> ADV -> Kicked out to Dungeon Select Hub!
+      AudioSys.se('defeat');
+      const lines = [
+        {
+          speaker: '次郎（40歳）',
+          jiroMood: 'sad',
+          opp: char.id,
+          oppMood: 'happy',
+          oppLabel: char.name,
+          isBoss: char.isBoss,
+          text: `「くそっ、${correctCount}問しか正解できなかった……！3問正解に届かず敗北か……！」`
+        },
+        {
+          speaker: char.name,
+          jiroMood: 'sad',
+          opp: char.id,
+          oppMood: 'happy',
+          oppLabel: char.name,
+          isBoss: char.isBoss,
+          text: char.lose[0]
+        },
+        {
+          speaker: char.name,
+          jiroMood: 'sad',
+          opp: char.id,
+          oppMood: 'normal',
+          oppLabel: char.name,
+          isBoss: char.isBoss,
+          text: char.lose[1]
+        },
+        {
+          speaker: 'システム',
+          jiroMood: 'sad',
+          opp: null,
+          text: `次郎は${activeDungeon.name}の外へ弾き出されてしまった……！ダンジョン選択からやり直そう！`
+        }
+      ];
+      startAdv(lines, () => {
+        renderHub();
+      });
+    }
+  }
+
+  function handleDungeonClear() {
+    state.cleared[activeDungeon.id] = true;
+    writeSave();
+    AudioSys.se('victory');
+    FX.confetti();
+
+    const clearLines = activeDungeon.clearAdv.map((t, i) => ({
+      speaker: i === 1 ? '次郎（40歳）' : 'ダンジョン制覇！',
+      jiroMood: 'happy',
+      opp: null,
+      text: t
+    }));
+
+    startAdv(clearLines, () => {
+      const allCleared = Object.values(state.cleared).every(Boolean);
+      if (allCleared && !state.seenAllClear) {
+        state.seenAllClear = true;
+        writeSave();
+        playAllClearAdv();
+      } else {
+        renderHub();
+      }
+    });
+  }
+
+  function playAllClearAdv() {
+    AudioSys.se('victory');
+    FX.confetti();
+    const lines = [
+      { speaker: 'ナレーション', jiroMood: 'happy', opp: null, text: 'ついに次郎は、5つのクイズダンジョンすべてを完全制覇した！' },
+      { speaker: '女子小・中・高生代表', jiroMood: 'happy', opp: 'mai', oppMood: 'happy', oppLabel: 'ダンジョンヒロインズ', text: '「40歳のおじさんなのに、私たちの流行や悩みまで本当に理解してくれるなんて見直したわ！」' },
+      { speaker: 'AI＆画像生成代表', jiroMood: 'happy', opp: 'nagato', oppMood: 'happy', oppLabel: 'AIマスターズ', text: '「……2026年の最新AI知識と生成技術も完璧に習得完了。あなたの知的好奇心に敬意を表する。」' },
+      { speaker: '次郎（40歳）', jiroMood: 'happy', opp: null, text: '「はっはっは！年齢なんて関係ない、学びと好奇心があれば人生いつでも青春だぜ！ありがとうみんなー！」' },
+      { speaker: '祝・全ダンジョン制覇！', jiroMood: 'happy', opp: null, text: '『次郎の5大クイズダンジョン』完全クリアおめでとう！これからも好きなダンジョンで何度でも遊べるぞ！' }
+    ];
+    startAdv(lines, () => {
+      FX.confetti();
+      renderHub();
+    });
+  }
+
+  /* ---------------------- PC KEYBOARD CONTROLS ---------------------- */
+  document.addEventListener('keydown', (e) => {
+    const modalOpen = !document.getElementById('modal-overlay').classList.contains('hidden');
+    if (modalOpen) {
+      if (e.key === 'Escape') hideModal();
+      return;
+    }
+
+    const k = e.key.toLowerCase();
+    if (k === 'm') {
+      AudioSys.toggleMute();
+      return;
+    }
+
+    if (screen === 'title') {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        startFromTitle();
+      } else if (k === 'o') {
+        playOpeningAdv();
+      } else if (e.key === 'Delete') {
+        confirmDeleteSave();
+      }
+    } else if (screen === 'hub') {
+      if (['1', '2', '3', '4', '5'].includes(e.key)) {
+        selectDungeon(parseInt(e.key, 10) - 1);
+      } else if (k === 'e' && Object.values(state.cleared).every(Boolean)) {
+        playAllClearAdv();
+      } else if (e.key === 'Escape') {
+        renderTitle();
+      }
+    } else if (screen === 'adv') {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        advanceAdv();
+      } else if (k === 's') {
+        skipAdv();
+      } else if (e.key === 'Escape') {
+        confirmReturnHub();
+      }
+    } else if (screen === 'battle') {
+      if (['1', '2', '3', '4'].includes(e.key)) {
+        submitAnswer(parseInt(e.key, 10) - 1);
+      } else if (['a', 'b', 'c', 'd'].includes(k)) {
+        submitAnswer(['a', 'b', 'c', 'd'].indexOf(k));
+      } else if (e.key === 'Escape') {
+        confirmReturnHub();
+      }
+    }
+  });
+
+  function init() {
+    loadSave();
+    renderTitle();
+  }
+
+  return {
+    init,
+    renderTitle,
+    renderHub,
+    startFromTitle,
+    playOpeningAdv,
+    playAllClearAdv,
+    selectDungeon,
+    advanceAdv,
+    skipAdv,
+    submitAnswer,
+    confirmDeleteSave,
+    confirmReturnHub
+  };
+})();
+
+window.onload = () => Game.init();
+</script>
+</body>
+</html>
